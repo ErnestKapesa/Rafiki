@@ -6,6 +6,10 @@
 
 create extension if not exists pgcrypto;
 
+-- Internal SECURITY DEFINER helpers live in a schema the Data API never exposes.
+create schema if not exists rafiki_private;
+revoke all on schema rafiki_private from public, anon, authenticated;
+
 -- ─── Catalog tables (public read) ───────────────────────────────────────────
 create table public.shop_items (
   id text primary key,
@@ -79,6 +83,7 @@ create table public.explorations (
   created_at timestamptz not null default now()
 );
 create index explorations_user_created on public.explorations (user_id, created_at desc);
+create index explorations_parent on public.explorations (parent_id);
 
 create table public.discoveries (
   user_id uuid not null references public.profiles on delete cascade,
@@ -89,6 +94,9 @@ create table public.discoveries (
   primary key (user_id, url)
 );
 
+create index discoveries_user_domain on public.discoveries (user_id, domain);
+create index discoveries_exploration on public.discoveries (exploration_id);
+
 create table public.quiz_attempts (
   user_id uuid not null references public.profiles on delete cascade,
   exploration_id uuid not null references public.explorations on delete cascade,
@@ -96,6 +104,8 @@ create table public.quiz_attempts (
   created_at timestamptz not null default now(),
   primary key (user_id, exploration_id)
 );
+
+create index quiz_attempts_exploration on public.quiz_attempts (exploration_id);
 
 create table public.achievements (
   user_id uuid not null references public.profiles on delete cascade,
@@ -110,6 +120,8 @@ create table public.inventory (
   acquired_at timestamptz not null default now(),
   primary key (user_id, item)
 );
+
+create index inventory_item on public.inventory (item);
 
 create table public.quest_claims (
   user_id uuid not null references public.profiles on delete cascade,
@@ -130,18 +142,20 @@ alter table public.quest_claims enable row level security;
 alter table public.shop_items enable row level security;
 alter table public.quest_defs enable row level security;
 
-create policy "own profile" on public.profiles for select using (id = auth.uid());
-create policy "own explorations" on public.explorations for select using (user_id = auth.uid());
-create policy "own discoveries" on public.discoveries for select using (user_id = auth.uid());
-create policy "own quizzes" on public.quiz_attempts for select using (user_id = auth.uid());
-create policy "own badges" on public.achievements for select using (user_id = auth.uid());
-create policy "own inventory" on public.inventory for select using (user_id = auth.uid());
-create policy "own quest claims" on public.quest_claims for select using (user_id = auth.uid());
-create policy "catalog" on public.shop_items for select using (true);
-create policy "quest catalog" on public.quest_defs for select using (true);
+create policy "own profile" on public.profiles for select to authenticated using (id = (select auth.uid()));
+create policy "own explorations" on public.explorations for select to authenticated using (user_id = (select auth.uid()));
+create policy "own discoveries" on public.discoveries for select to authenticated using (user_id = (select auth.uid()));
+create policy "own quizzes" on public.quiz_attempts for select to authenticated using (user_id = (select auth.uid()));
+create policy "own badges" on public.achievements for select to authenticated using (user_id = (select auth.uid()));
+create policy "own inventory" on public.inventory for select to authenticated using (user_id = (select auth.uid()));
+create policy "own quest claims" on public.quest_claims for select to authenticated using (user_id = (select auth.uid()));
+create policy "catalog" on public.shop_items for select to anon, authenticated using (true);
+create policy "quest catalog" on public.quest_defs for select to anon, authenticated using (true);
+
+create index quest_claims_quest on public.quest_claims (quest_id);
 
 -- ─── New user → profile + starter kit ───────────────────────────────────────
-create function public.handle_new_user() returns trigger
+create function rafiki_private.handle_new_user() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
   insert into public.profiles (id) values (new.id) on conflict do nothing;
@@ -150,14 +164,14 @@ begin
 end $$;
 
 create trigger on_auth_user_created after insert on auth.users
-  for each row execute function public.handle_new_user();
+  for each row execute function rafiki_private.handle_new_user();
 
 -- ─── Helpers ────────────────────────────────────────────────────────────────
 create function public.xp_for_level(p_level int) returns int
-language sql immutable as $$ select 50 * p_level * (p_level - 1) $$;
+language sql immutable set search_path = '' as $$ select 50 * p_level * (p_level - 1) $$;
 
 create function public.level_for(p_xp int) returns int
-language plpgsql immutable as $$
+language plpgsql immutable set search_path = '' as $$
 declare l int := 1;
 begin
   while p_xp >= public.xp_for_level(l + 1) loop l := l + 1; end loop;
@@ -165,19 +179,19 @@ begin
 end $$;
 
 create function public.domain_of(p_url text) returns text
-language sql immutable as $$
+language sql immutable set search_path = '' as $$
   select lower(substring(p_url from '^https?://(?:www\.)?([^/:?#]+)'))
 $$;
 
-create function public._uid() returns uuid
-language plpgsql stable as $$
+create function rafiki_private._uid() returns uuid
+language plpgsql stable set search_path = '' as $$
 declare u uuid := auth.uid();
 begin
   if u is null then raise exception 'not signed in' using errcode = '28000'; end if;
   return u;
 end $$;
 
-create function public._stats(p_uid uuid) returns jsonb
+create function rafiki_private._stats(p_uid uuid) returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'explorations', (select count(*) from explorations where user_id = p_uid),
@@ -194,10 +208,10 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- Badge thresholds mirror BADGES in shared/game.ts.
-create function public._award_badges(p_uid uuid) returns text[]
+create function rafiki_private._award_badges(p_uid uuid) returns text[]
 language plpgsql security definer set search_path = public as $$
 declare
-  s jsonb := public._stats(p_uid);
+  s jsonb := rafiki_private._stats(p_uid);
   earned text[];
 begin
   with rules(badge, stat, goal) as (values
@@ -216,7 +230,7 @@ begin
   return earned;
 end $$;
 
-create function public._result(p_uid uuid, p_xp int, p_stardust int, p_badges text[], p_extra jsonb default '{}')
+create function rafiki_private._result(p_uid uuid, p_xp int, p_stardust int, p_badges text[], p_extra jsonb default '{}')
 returns jsonb language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'xp', p.xp, 'stardust', p.stardust, 'level', public.level_for(p.xp),
@@ -234,7 +248,7 @@ create function public.record_exploration(
 ) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
-  uid uuid := public._uid();
+  uid uuid := rafiki_private._uid();
   p profiles;
   today date := (now() at time zone 'utc')::date;
   new_streak int;
@@ -277,7 +291,7 @@ begin
     trail = depth, best_trail = greatest(best_trail, depth), updated_at = now()
   where id = uid;
 
-  return public._result(uid, gx, gs, public._award_badges(uid),
+  return rafiki_private._result(uid, gx, gs, rafiki_private._award_badges(uid),
     jsonb_build_object('explorationId', new_id, 'streakBonus', streak_bonus, 'trailDepth', depth));
 end $$;
 
@@ -285,7 +299,7 @@ end $$;
 create function public.record_discovery(p_url text, p_exploration uuid) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
-  uid uuid := public._uid();
+  uid uuid := rafiki_private._uid();
   d text := public.domain_of(p_url);
   new_domain boolean;
   inserted int;
@@ -301,7 +315,7 @@ begin
     gx := 5; gs := 2 + case when new_domain then 10 else 0 end;
     update profiles set xp = xp + gx, stardust = stardust + gs, updated_at = now() where id = uid;
   end if;
-  return public._result(uid, gx, gs, public._award_badges(uid),
+  return rafiki_private._result(uid, gx, gs, rafiki_private._award_badges(uid),
     jsonb_build_object('newWorld', inserted = 1 and new_domain));
 end $$;
 
@@ -309,7 +323,7 @@ end $$;
 create function public.record_quiz(p_exploration uuid, p_correct boolean) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
-  uid uuid := public._uid();
+  uid uuid := rafiki_private._uid();
   inserted int;
   gx int := 0; gs int := 0;
 begin
@@ -324,13 +338,13 @@ begin
     gs := case when p_correct then 5 else 0 end;
     update profiles set xp = xp + gx, stardust = stardust + gs, updated_at = now() where id = uid;
   end if;
-  return public._result(uid, gx, gs, public._award_badges(uid));
+  return rafiki_private._result(uid, gx, gs, rafiki_private._award_badges(uid));
 end $$;
 
 -- ─── Daily quests ───────────────────────────────────────────────────────────
 -- Same deterministic pick as questsForDate() in shared/game.ts (uint32 math).
 create function public.quests_for_date(p_day date) returns setof text
-language plpgsql immutable as $$
+language plpgsql immutable set search_path = '' as $$
 declare
   s text := to_char(p_day, 'YYYY-MM-DD');
   h bigint := 0;
@@ -351,7 +365,7 @@ begin
   end loop;
 end $$;
 
-create function public._quest_progress(p_uid uuid, p_day date) returns jsonb
+create function rafiki_private._quest_progress(p_uid uuid, p_day date) returns jsonb
 language sql stable security definer set search_path = public as $$
   with e as (select * from explorations where user_id = p_uid and (created_at at time zone 'utc')::date = p_day)
   select jsonb_build_object(
@@ -368,17 +382,17 @@ $$;
 create function public.claim_daily_quest(p_quest text) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
-  uid uuid := public._uid();
+  uid uuid := rafiki_private._uid();
   today date := (now() at time zone 'utc')::date;
   q quest_defs;
-  progress jsonb := public._quest_progress(uid, today);
+  progress jsonb := rafiki_private._quest_progress(uid, today);
 begin
   if p_quest not in (select public.quests_for_date(today)) then raise exception 'not today''s quest'; end if;
   select * into q from quest_defs where id = p_quest;
   if (progress ->> q.counter)::int < q.goal then raise exception 'quest not complete yet'; end if;
   insert into quest_claims (user_id, quest_id, day) values (uid, p_quest, today);
   update profiles set xp = xp + 30, stardust = stardust + 15, updated_at = now() where id = uid;
-  return public._result(uid, 30, 15, public._award_badges(uid));
+  return rafiki_private._result(uid, 30, 15, rafiki_private._award_badges(uid));
 exception when unique_violation then
   raise exception 'already claimed';
 end $$;
@@ -387,7 +401,7 @@ end $$;
 create function public.buy_item(p_item text) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
-  uid uuid := public._uid();
+  uid uuid := rafiki_private._uid();
   it shop_items;
   p profiles;
 begin
@@ -399,13 +413,13 @@ begin
   if p.stardust < it.price then raise exception 'not enough stardust'; end if;
   update profiles set stardust = stardust - it.price, updated_at = now() where id = uid;
   insert into inventory (user_id, item) values (uid, p_item);
-  return public._result(uid, 0, -it.price, '{}');
+  return rafiki_private._result(uid, 0, -it.price, '{}');
 end $$;
 
 create function public.save_character(p_character jsonb, p_display_name text, p_friend_name text) returns void
 language plpgsql security definer set search_path = public as $$
 declare
-  uid uuid := public._uid();
+  uid uuid := rafiki_private._uid();
   owned text[] := array(select item from inventory where user_id = uid);
   free_colors text[] := array['peach','lilac','mint','sky','butter','rose'];
   free_species text[] := array['bear','bunny','cat','sprout','antenna'];
@@ -434,7 +448,7 @@ end $$;
 create function public.get_my_state() returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
-  uid uuid := public._uid();
+  uid uuid := rafiki_private._uid();
   today date := (now() at time zone 'utc')::date;
 begin
   insert into profiles (id) values (uid) on conflict do nothing; -- users created before the trigger existed
@@ -443,11 +457,11 @@ begin
     select jsonb_build_object(
       'profile', to_jsonb(p) - 'id',
       'level', public.level_for(p.xp),
-      'stats', public._stats(uid),
+      'stats', rafiki_private._stats(uid),
       'badges', coalesce((select jsonb_agg(badge) from achievements where user_id = uid), '[]'),
       'inventory', coalesce((select jsonb_agg(item) from inventory where user_id = uid), '[]'),
       'quests', (select jsonb_agg(q) from public.quests_for_date(today) q),
-      'questProgress', public._quest_progress(uid, today),
+      'questProgress', rafiki_private._quest_progress(uid, today),
       'questClaims', coalesce((select jsonb_agg(quest_id) from quest_claims where user_id = uid and day = today), '[]'),
       'domains', coalesce((select jsonb_agg(distinct domain) from discoveries where user_id = uid), '[]')
     ) from profiles p where p.id = uid
@@ -463,9 +477,16 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- Only expose the RPCs, not the internal helpers.
-revoke all on function public._stats, public._award_badges, public._result, public._quest_progress, public.handle_new_user from public, anon, authenticated;
+revoke all on function rafiki_private._stats, rafiki_private._award_badges, rafiki_private._result, rafiki_private._quest_progress, rafiki_private.handle_new_user from public, anon, authenticated;
 revoke all on function public.record_exploration, public.record_discovery, public.record_quiz, public.claim_daily_quest,
   public.buy_item, public.save_character, public.get_my_state from public, anon;
 grant execute on function public.record_exploration, public.record_discovery, public.record_quiz, public.claim_daily_quest,
   public.buy_item, public.save_character, public.get_my_state to authenticated;
 grant execute on function public.get_leaderboard to anon, authenticated;
+
+-- Data API: read-only table access (RLS narrows it to your own rows); writes only via the RPCs above.
+revoke insert, update, delete, truncate on all tables in schema public from anon, authenticated;
+grant select on public.profiles, public.explorations, public.discoveries, public.quiz_attempts,
+  public.achievements, public.inventory, public.quest_claims to authenticated;
+grant select on public.shop_items, public.quest_defs to anon, authenticated;
+grant usage on schema public to anon, authenticated;

@@ -1,8 +1,8 @@
 import type OpenAI from "openai";
-import type { AgentEvent, AskRequest, Mood, Quiz, Source, StepMetric, WebImage } from "../shared/types.ts";
-import { models, nebius, parseJson, type Tier } from "./nebius.ts";
-import { StreamSplitter, type SplitOut } from "./splitter.ts";
-import { tavilyExtract, tavilySearch, type TavilyResult } from "./tavily.ts";
+import type { AgentEvent, AskRequest, Mood, Quiz, Source, StepMetric, WebImage } from "../shared/types.js";
+import { models, nebius, parseJson, type Tier } from "./nebius.js";
+import { StreamSplitter, type SplitOut } from "./splitter.js";
+import { tavilyExtract, tavilySearch, type TavilyResult } from "./tavily.js";
 
 type Msg = OpenAI.Chat.Completions.ChatCompletionMessageParam;
 
@@ -176,7 +176,7 @@ Return ONLY a JSON object:
     const settled = await Promise.allSettled(
       plan.queries.map((q) =>
         tavilySearch(q, {
-          depth: deep ? "advanced" : "basic",
+          depth: deep ? "advanced" : "fast",
           topic: plan.topic,
           timeRange: plan.time_range ?? undefined,
           maxResults: deep ? 7 : 5,
@@ -203,8 +203,10 @@ Return ONLY a JSON object:
       const firstErr = settled.find((s) => s.status === "rejected") as PromiseRejectedResult | undefined;
       if (firstErr) throw firstErr.reason;
     }
-    sources = [...byUrl.values()]
-      .sort((a, b) => b.score - a.score)
+    // Post-filter by relevance score, but never starve the answer of sources.
+    const ranked = [...byUrl.values()].sort((a, b) => b.score - a.score);
+    const relevant = ranked.filter((r) => r.score >= 0.3);
+    sources = (relevant.length >= 3 ? relevant : ranked)
       .slice(0, deep ? 12 : 8)
       .map((r, i) => ({
         id: i + 1,
@@ -225,7 +227,8 @@ Return ONLY a JSON object:
     if (deep && sources.length) {
       emit({ type: "stage", stage: "read", label: "Reading the most promising pages in full" });
       t0 = Date.now();
-      const pages = await tavilyExtract(sources.slice(0, 4).map((s) => s.url)).catch(() => []);
+      const best = sources.filter((s) => s.score > 0.5).slice(0, 5);
+      const pages = await tavilyExtract((best.length ? best : sources.slice(0, 4)).map((s) => s.url), req.question).catch(() => []);
       raw = new Map(pages.map((p) => [p.url, p.raw_content.slice(0, 7000)]));
       metrics.push({ step: `Extract ×${pages.length}`, model: "Tavily", ms: Date.now() - t0 });
     }

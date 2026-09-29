@@ -1,4 +1,4 @@
-import type { AgentEvent, AskRequest } from "../shared/types.ts";
+import type { AgentEvent, AskRequest } from "../shared/types.js";
 
 // Canned run used when RAFIKI_MOCK=1 or no API keys are set, so the UI can be
 // developed and demoed offline. Real runs go through ./agent.ts.

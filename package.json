@@ -2,7 +2,7 @@
   "name": "rafiki",
   "private": true,
   "version": "0.1.0",
-  "description": "Rafiki — a talking 3D companion that searches the web for you. Powered by NVIDIA Nemotron on Nebius Token Factory + Tavily.",
+  "description": "Rafiki \u2014 a talking 3D companion that searches the web for you. Powered by NVIDIA Nemotron on Nebius Token Factory + Tavily.",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -15,7 +15,9 @@
     "typecheck": "tsc -p .",
     "test": "vitest run",
     "test:sql": "tests/sql/run.sh",
-    "e2e": "node tests/e2e/flow.mjs"
+    "e2e": "node tests/e2e/flow.mjs",
+    "deploy": "vercel --prod",
+    "db:push": "supabase db push"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.3",

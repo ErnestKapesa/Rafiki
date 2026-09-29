@@ -88,7 +88,8 @@ end $$;
 -- clients cannot write rewards directly
 select pg_temp.expect_error($q$update profiles set xp = 999999$q$, 'permission denied');
 select pg_temp.expect_error($q$insert into explorations (user_id, question, mode) values (auth.uid(), 'x', 'quick')$q$, 'permission denied');
-select pg_temp.expect_error($q$select _award_badges(auth.uid())$q$, 'permission denied');
+select pg_temp.expect_error($q$select rafiki_private._award_badges(auth.uid())$q$, 'permission denied');
+select pg_temp.expect_error($q$select * from rafiki_private._stats(auth.uid())$q$, 'permission denied');
 
 -- daily quest: incomplete quests can't be claimed; someone else's day can't either
 select pg_temp.expect_error($q$select claim_daily_quest('nope')$q$, 'not today');

@@ -10,5 +10,4 @@ do $$ begin
   if not exists (select from pg_roles where rolname = 'authenticated') then create role authenticated nologin; end if;
 end $$;
 grant usage on schema public, auth to anon, authenticated;
-grant select on all tables in schema public to anon, authenticated;
 grant execute on function auth.uid() to anon, authenticated;

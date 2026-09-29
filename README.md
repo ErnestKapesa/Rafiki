@@ -91,6 +91,15 @@ docker run -p 8787:8787 --env-file .env rafiki
 
 The `VITE_*` values are compiled into the web bundle, so they're passed as build args. The API keys stay server-side at runtime.
 
+### Vercel (recommended)
+
+The repo ships ready for Vercel: `vercel.json` builds the static app, and `api/[[...route]].ts` runs the streaming agent as a Vercel Function. Step-by-step instructions, including Supabase, are in **[DEPLOY.md](DEPLOY.md)**:
+
+```bash
+vercel link && vercel env add NEBIUS_API_KEY production   # …and the other vars
+npm run deploy
+```
+
 ### Environment
 
 | Var | Purpose |

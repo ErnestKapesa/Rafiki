@@ -5,14 +5,14 @@
  *
  *   { "mcpServers": { "rafiki": { "command": "npx", "args": ["tsx", "server/mcp.ts"], "cwd": "/path/to/Rafiki" } } }
  */
-import "./env.ts";
+import "./env.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import type { Source } from "../shared/types.ts";
-import { runAgent } from "./agent.ts";
-import { resolveModels } from "./nebius.ts";
-import { tavilySearch } from "./tavily.ts";
+import type { Source } from "../shared/types.js";
+import { runAgent } from "./agent.js";
+import { resolveModels } from "./nebius.js";
+import { tavilySearch } from "./tavily.js";
 
 const server = new McpServer({ name: "rafiki", version: "0.1.0" });
 
