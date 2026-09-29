@@ -1,6 +1,7 @@
 import type OpenAI from "openai";
-import type { AgentEvent, AskRequest, Mood, Source, StepMetric, WebImage } from "../shared/types.ts";
+import type { AgentEvent, AskRequest, Mood, Quiz, Source, StepMetric, WebImage } from "../shared/types.ts";
 import { models, nebius, parseJson, type Tier } from "./nebius.ts";
+import { StreamSplitter, type SplitOut } from "./splitter.ts";
 import { tavilyExtract, tavilySearch, type TavilyResult } from "./tavily.ts";
 
 type Msg = OpenAI.Chat.Completions.ChatCompletionMessageParam;
@@ -161,7 +162,8 @@ Return ONLY a JSON object:
   if (!plan.queries?.length) plan.queries = [req.question];
   plan.queries = plan.queries.slice(0, deep ? 4 : 3);
   metrics.push({ step: "Plan", model: models.fast, ms: Date.now() - t0, tokens: planRes.usage?.total_tokens });
-  emit({ type: "plan", intent: plan.intent, queries: plan.queries, mood: plan.mood, emoji: plan.emoji });
+  if (plan.topic !== "news") plan.topic = "general";
+  emit({ type: "plan", intent: plan.intent, queries: plan.queries, mood: plan.mood, emoji: plan.emoji, topic: plan.topic });
   if (signal?.aborted) return;
 
   /* 2. SEARCH — fan the queries out to Tavily in parallel. */
@@ -282,12 +284,20 @@ ${sources.length ? "Cite sources inline as [n] using the numbered sources below 
     { think: deep, maxTokens: deep ? 4096 : 1500 },
   );
 
-  // Stream parser: <think> → reasoning, <say> → spoken line, rest → markdown tokens.
-  let buf = "";
-  let phase: "start" | "think" | "say" | "body" = "start";
-  let said = "";
+  // Route <think> → reasoning, <say> → voice, everything else → markdown.
+  const splitter = new StreamSplitter();
   let tokens: number | undefined;
-  const flushBody = (text: string) => text && emit({ type: "token", text });
+  let bodyText = "";
+  const route = (parts: SplitOut[]) => {
+    for (const p of parts) {
+      if (p.kind === "reasoning") emit({ type: "reasoning", text: p.text });
+      else if (p.kind === "say") emit({ type: "say", text: p.text });
+      else {
+        bodyText += p.text;
+        emit({ type: "token", text: p.text });
+      }
+    }
+  };
 
   for await (const chunk of stream) {
     if (signal?.aborted) {
@@ -297,59 +307,55 @@ ${sources.length ? "Cite sources inline as [n] using the numbered sources below 
     if (chunk.usage) tokens = chunk.usage.total_tokens;
     const delta = chunk.choices[0]?.delta as { content?: string | null; reasoning_content?: string | null } | undefined;
     if (delta?.reasoning_content) emit({ type: "reasoning", text: delta.reasoning_content });
-    if (!delta?.content) continue;
-    buf += delta.content;
-
-    // Loop because one chunk can cross several phase boundaries.
-    for (;;) {
-      if (phase === "start") {
-        const trimmed = buf.trimStart();
-        if (trimmed.startsWith("<think>")) {
-          buf = trimmed.slice(7);
-          phase = "think";
-        } else if (trimmed.startsWith("<say>")) {
-          buf = trimmed.slice(5);
-          phase = "say";
-        } else if ("<think>".startsWith(trimmed.slice(0, 7)) || "<say>".startsWith(trimmed.slice(0, 5))) {
-          break; // could still be the start of a tag — wait for more text
-        } else {
-          phase = "body";
-        }
-      } else if (phase === "think") {
-        const end = buf.indexOf("</think>");
-        if (end >= 0) {
-          emit({ type: "reasoning", text: buf.slice(0, end) });
-          buf = buf.slice(end + 8);
-          phase = "start";
-        } else {
-          const keep = buf.length - 8;
-          if (keep > 0) emit({ type: "reasoning", text: buf.slice(0, keep) });
-          buf = buf.slice(Math.max(keep, 0));
-          break;
-        }
-      } else if (phase === "say") {
-        const end = buf.indexOf("</say>");
-        if (end >= 0) {
-          said = buf.slice(0, end).trim();
-          emit({ type: "say", text: said });
-          buf = buf.slice(end + 6).replace(/^\s+/, "");
-          phase = "body";
-        } else break;
-      } else {
-        flushBody(buf);
-        buf = "";
-        break;
-      }
-    }
+    if (delta?.content) route(splitter.push(delta.content));
   }
-  if (phase === "say") {
-    // Model never closed the tag — treat what we have as the spoken line.
-    said = buf.trim();
-    emit({ type: "say", text: said });
-  } else if (buf) flushBody(buf);
+  route(splitter.end());
 
   metrics.push({ step: deep ? "Deep answer" : "Answer", model: models[tier], ms: Date.now() - t0, tokens });
-  await relatedP;
+
+  /* 5. POP QUIZ — Nano turns the answer into one question for bonus XP. */
+  const answerText = bodyText.trim();
+  const quizP =
+    sources.length && answerText.length > 80
+      ? (async () => {
+          const t = Date.now();
+          const res = await chat(
+            "fast",
+            [
+              {
+                role: "system",
+                content:
+                  'Write ONE fun multiple-choice question that checks understanding of the text. It must be answerable from the text alone. Return ONLY JSON: {"question":string,"options":[string,string,string],"answer":0|1|2,"explain":string}. Options under 8 words; explain in one short friendly sentence.',
+              },
+              { role: "user", content: answerText.replace(/\[\d+\]/g, "").slice(0, 4000) },
+            ],
+            { think: false, maxTokens: 300, temperature: 0.6 },
+          );
+          const q = parseJson<Quiz>(res.choices[0]?.message?.content ?? "");
+          metrics.push({ step: "Pop quiz", model: models.fast, ms: Date.now() - t, tokens: res.usage?.total_tokens });
+          if (q && validQuiz(q)) emit({ type: "quiz", quiz: shuffleQuiz(q) });
+        })().catch(() => {})
+      : Promise.resolve();
+
+  await Promise.all([relatedP, quizP]);
   emit({ type: "metrics", steps: metrics });
   emit({ type: "stage", stage: "done", label: "Done" });
+}
+
+function validQuiz(q: Quiz) {
+  return (
+    typeof q.question === "string" &&
+    Array.isArray(q.options) &&
+    q.options.length === 3 &&
+    q.options.every((o) => typeof o === "string" && o.trim()) &&
+    Number.isInteger(q.answer) &&
+    q.answer >= 0 &&
+    q.answer < 3
+  );
+}
+
+/** Models love putting the right answer first — shuffle so it isn't guessable. */
+export function shuffleQuiz(q: Quiz, rand = Math.random): Quiz {
+  const order = [0, 1, 2].sort(() => rand() - 0.5);
+  return { ...q, options: order.map((i) => q.options[i]), answer: order.indexOf(q.answer), explain: q.explain ?? "" };
 }

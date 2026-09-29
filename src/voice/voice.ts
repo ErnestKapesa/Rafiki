@@ -1,3 +1,4 @@
+import { babble, sfx } from "../audio/sfx";
 import { useRafiki } from "../lib/store";
 
 /* ------------------------------------------------------------------------ */
@@ -28,7 +29,7 @@ function getWorker() {
 }
 
 export function enableHdVoice() {
-  useRafiki.getState().set({ hdVoice: true, hdVoiceProgress: 0 });
+  useRafiki.getState().set({ voiceMode: "hd", hdVoiceProgress: 0 });
   getWorker().postMessage({ type: "load" });
 }
 
@@ -43,12 +44,13 @@ export function stopSpeaking() {
 
 export async function speak(text: string) {
   const s = useRafiki.getState();
-  if (!s.voiceOn || !text) return;
+  if (s.voiceMode === "off" || !text) return;
   stopSpeaking();
   const id = speakId;
   const clean = text.replace(/\[(\d+)\]/g, "").replace(/[*_#`]/g, "");
 
-  if (s.hdVoice && s.hdVoiceProgress === null) {
+  if (s.voiceMode === "babble") return speakBabble(clean, id);
+  if (s.voiceMode === "hd" && s.hdVoiceProgress === null) {
     const result = await new Promise<{ samples: Float32Array; rate: number } | null>((resolve) => {
       pending.set(id, resolve);
       getWorker().postMessage({ type: "speak", id, text: clean, voice: "af_heart" });
@@ -91,6 +93,19 @@ function playSamples(samples: Float32Array, rate: number, id: number) {
     };
     src.start();
   });
+}
+
+/** Animal-Crossing-style gibberish with a flapping mouth. */
+async function speakBabble(text: string, id: number) {
+  const { mouth, set } = useRafiki.getState();
+  set({ pose: "speaking" });
+  await babble(text.slice(0, 220), 1.15, () => {
+    if (id === speakId) mouth.value = 0.7 + Math.random() * 0.3;
+    setTimeout(() => {
+      if (id === speakId) mouth.value = 0.1;
+    }, 45);
+  });
+  if (id === speakId) finish();
 }
 
 function pickVoice() {
@@ -172,6 +187,7 @@ export function listen(onFinal: (text: string) => void) {
   rec.continuous = false;
   const { set } = useRafiki.getState();
   let finalText = "";
+  sfx.micOn();
   set({ pose: "listening", interim: "" });
   rec.onresult = (e) => {
     let interim = "";
@@ -185,6 +201,7 @@ export function listen(onFinal: (text: string) => void) {
   rec.onerror = () => set({ pose: "idle", interim: "" });
   rec.onend = () => {
     rec = null;
+    sfx.micOff();
     const text = finalText.trim() || useRafiki.getState().interim;
     set({ interim: "" });
     if (text) onFinal(text);

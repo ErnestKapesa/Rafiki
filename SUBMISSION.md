@@ -1,47 +1,54 @@
 # Rafiki: hackathon submission kit
 
 ## Category
-**Best Apps and Agents.** Rafiki is an app people would actually use every day. It runs on Nemotron via Token Factory and uses Nano, Super, and Ultra, each for the kind of call it's best at.
+**Best Apps and Agents.** It's an everyday app. Nemotron 3 Nano, Super and Ultra on Token Factory are each routed to the job they're best at.
 
 ## One-liner
-Rafiki is a talking 3D alien friend. It researches the live web with NVIDIA Nemotron on Nebius Token Factory and answers out loud, and the sources it cites orbit its planet as moons.
+Rafiki turns web search into a cozy adventure. Your customizable plush friend explores the internet with you: it talks, cites its sources as worlds to discover, quizzes you, and rewards your curiosity with XP, quests and outfits. It's powered by NVIDIA Nemotron on Nebius Token Factory.
 
 ## Description (paste into Devpost)
 
-**What.** Rafiki (Swahili for *friend*) turns web search into a conversation with a character. Hold Space and ask a question. Rafiki perks up its antennae and listens. It thinks, with thought-motes swirling around it. It sends its searches out across the web, and the pages it finds launch into orbit as glowing moons. Then it tells you the answer in its own voice, while a cited briefing streams in beside it. Hover any citation and its moon lights up.
+**What.** Search usually means a wall of links or a chatbot that hides where its facts came from. Rafiki makes finding things out feel like a game you want to come back to:
 
-**Why.** Search today means a wall of blue links, or a chatbot that hides where its facts came from. We wanted search to feel warm, fast, and trustworthy: something you'd talk to on the couch, that a kid could use, and that is still honest about its sources. We also wanted to prove that open NVIDIA models on independent infrastructure can power a consumer-grade experience.
+- You **hatch** your friend from a star and design it: species, fur, eyes, scarf.
+- You ask a question out loud. Rafiki goes on an **expedition**: it plans with Nemotron, searches with Tavily, and **tells you the answer in its own voice** while a cited answer streams in.
+- Every source becomes a **mystery world** orbiting Rafiki's planet. **Visiting** a source discovers it for XP, with a bonus for sites you've never seen. That nudges people to actually read primary sources.
+- A **pop quiz** written by Nemotron Nano checks that you understood the answer.
+- **Trails** of follow-up questions earn combo bonuses and draw constellations in your **knowledge galaxy**.
+- **Daily quests, streaks, 10 badges, levels and a wardrobe shop** keep curiosity a habit. The **leaderboard** runs on Supabase.
 
-**How.**
-1. **Plan:** *Nemotron 3 Nano* (reasoning off, for speed) turns the question plus conversation history into 1–4 targeted search queries. It also picks the topic's mood, which recolors the sky, and an emoji.
-2. **Search:** the queries fan out to **Tavily** in parallel. Results are deduplicated and ranked, and images and favicons are collected.
-3. **Read (Deep Dive only):** Tavily Extract pulls the full text of the top pages.
-4. **Write:** *Nemotron 3 Super* (Quick) or *Nemotron 3 Ultra* (Deep Dive, reasoning on) streams a `<say>` line for the voice, followed by a markdown answer with `[n]` citations. A streaming parser routes reasoning, speech, and answer text to different parts of the UI. Rafiki starts talking before the answer has finished writing.
-5. In parallel, *Nano* generates "wander further" follow-up questions.
+**How (Nebius + NVIDIA).** All LLM inference runs on **Nebius Token Factory** through its OpenAI-compatible API, routed by job:
 
-Everything streams over SSE, and the UI shows which Nemotron model handled each step, how long it took, and how many tokens it used.
+| Step | Model | Why |
+|---|---|---|
+| Plan queries, mood, topic | Nemotron 3 **Nano** (reasoning off) | Fast and cheap, keeps the app snappy |
+| Cited answer + spoken line | Nemotron 3 **Super** | Quality writing with citation discipline |
+| Deep Dive over full pages | Nemotron 3 **Ultra** (reasoning on) | Serious reasoning, shown live |
+| Pop quiz + follow-up trails | Nemotron 3 **Nano** | Runs in parallel, cheap |
 
-**Open source everywhere:** NVIDIA Nemotron models; Kokoro-82M neural TTS running in the browser via ONNX; three.js / React Three Fiber; the MCP SDK, so Rafiki's research tools can plug into any MCP agent (Hermes, NemoClaw, Claude Desktop, Cursor). MIT licensed.
+The answer streams over SSE. A chunk-safe parser splits reasoning, speech and markdown, so Rafiki starts talking before the answer has finished writing. The UI shows each step's model, latency and token count. The whole app ships as one Docker container that can run on **Nebius Serverless Endpoints**.
 
-**Nebius:** all LLM inference runs on **Nebius Token Factory** through its OpenAI-compatible API. The app ships as a single Docker container, ready for **Nebius Serverless Endpoints**.
+**Open source throughout:** NVIDIA Nemotron, Kokoro-82M TTS running in the browser, three.js / React Three Fiber, Fluent 3D icons (MIT), the MCP SDK (Rafiki is also an MCP server), and Supabase. MIT licensed.
+
+**Quality:** 12 unit tests (including engine↔SQL parity), a Postgres scenario suite covering RLS and anti-cheat, and a 46-check end-to-end browser test of the full game loop at desktop and phone sizes.
 
 ## 3-minute demo video script
 
 | Time | Shot | Voice-over |
 |---|---|---|
-| 0:00–0:15 | Rafiki idling on its planet, eyes following the cursor | "This is Rafiki, my little alien friend who explores the internet for me." |
-| 0:15–0:50 | Hold Space: "What happened in AI this week?" Antennae perk, sky turns teal, thought motes, moons launch, Rafiki hops and starts talking | "I just talk to it. Nemotron 3 Nano on Nebius Token Factory plans the searches, Tavily searches in parallel, and every source becomes a moon." |
-| 0:50–1:20 | Hover citations → moons glow; scroll the answer, images, metrics bar | "Every claim is cited. Hover one and its moon lights up. This panel shows exactly which Nemotron model did each step, and how fast." |
-| 1:20–1:55 | Switch to 🌌 Deep Dive, ask a hard question; show "Nemotron is reasoning…" live | "For hard questions, Deep Dive reads full pages and hands them to Nemotron 3 Ultra. You can watch it reason." |
-| 1:55–2:15 | Click a follow-up chip; then ask "what about the second one?" | "It remembers the conversation, and suggests where to wander next." |
-| 2:15–2:35 | Toggle ✨ HD voice | "The voice is Kokoro, an open-source neural TTS running entirely in my browser." |
-| 2:35–2:50 | Claude Desktop / Cursor calling `rafiki_research` via MCP | "And Rafiki is an MCP server, so any agent can borrow its research skills." |
-| 2:50–3:00 | Rafiki waves | "Rafiki: open models, open infrastructure, and a friend who searches for you." |
+| 0:00–0:20 | Dark cosmos, glowing star → tap → it bursts, the planet rises, Rafiki hops out and says "Jambo!" | "Meet Rafiki, a friend who explores the internet with you." |
+| 0:20–0:40 | Pick bunny, mint, sparkly eyes; scarf on | "You make it yours." |
+| 0:40–1:15 | Hold Space: "What happened in AI this week?" Antennae perk up, thought motes, worlds launch, Rafiki talks, +XP toasts | "Nemotron 3 Nano on Nebius Token Factory plans the search, Tavily scouts the web, and Nemotron 3 Super writes a cited answer. Rafiki starts talking before it's done writing." |
+| 1:15–1:40 | Click worlds → they light up, chime, "New world discovered!" | "Every source is a world to discover. Actually reading sources earns rewards." |
+| 1:40–2:00 | Pop quiz → correct → happy eyes and confetti; badge unlocked | "Nano writes a pop quiz so you remember what you learned." |
+| 2:00–2:20 | Deep Dive, "Nemotron is reasoning…", trail chip → combo | "Deep Dive hands whole pages to Nemotron 3 Ultra, and trails chain your curiosity." |
+| 2:20–2:40 | Quests → claim; wardrobe → buy a beanie; galaxy constellation | "Quests, streaks, outfits, and a galaxy of everything you've learned, synced with Supabase." |
+| 2:40–3:00 | Under-the-hood metrics; MCP call from Claude Desktop | "Every step shows which Nemotron did the work. Rafiki is open source, and it's also an MCP server." |
 
-## Feedback template (fill in with your real experience)
-- **Token Factory:** OpenAI compatibility meant zero SDK changes; time-to-first-token for Nano vs Super; anything confusing about model ids or regions.
-- **Nemotron 3:** how well Nano follows JSON-only prompts; Super's citation discipline; Ultra reasoning quality versus latency; the `enable_thinking` toggle.
-- **What we'd love:** a TTS/ASR model on Token Factory (e.g. NVIDIA Riva/Parakeet/Magpie), so voice could run on Nebius too.
+## Feedback (fill in with your real experience)
+- **Token Factory:** OpenAI compatibility meant zero SDK changes; note model-id and region discovery; time-to-first-token for Nano vs Super.
+- **Nemotron 3:** Nano's JSON reliability for planning and quizzes; Super's citation discipline; Ultra's reasoning quality vs latency; the `enable_thinking` toggle.
+- **Wish list:** a speech model on Token Factory (e.g. Parakeet ASR / Magpie TTS) so voice could run on Nebius too.
 
-## If the project existed before
-It didn't. Rafiki was built from scratch during the submission period.
+## Existing project?
+No. Rafiki was built from scratch during the submission period.

@@ -24,19 +24,23 @@ export type Source = {
 
 export type WebImage = { url: string; description?: string };
 
+/** A one-question pop quiz generated from the answer (Nemotron Nano). */
+export type Quiz = { question: string; options: string[]; answer: number; explain: string };
+
 export type Stage = "plan" | "search" | "read" | "write" | "done";
 
 export type StepMetric = { step: string; model?: string; ms: number; tokens?: number };
 
 export type AgentEvent =
   | { type: "stage"; stage: Stage; label: string; model?: string }
-  | { type: "plan"; intent: "search" | "chat"; queries: string[]; mood: Mood; emoji: string }
+  | { type: "plan"; intent: "search" | "chat"; queries: string[]; mood: Mood; emoji: string; topic: "general" | "news" }
   | { type: "sources"; sources: Source[] }
   | { type: "images"; images: WebImage[] }
   | { type: "reasoning"; text: string }
   | { type: "say"; text: string }
   | { type: "token"; text: string }
   | { type: "related"; questions: string[] }
+  | { type: "quiz"; quiz: Quiz }
   | { type: "metrics"; steps: StepMetric[] }
   | { type: "error"; message: string }
   | { type: "done" };

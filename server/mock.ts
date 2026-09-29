@@ -13,6 +13,7 @@ export async function* runMock(req: AskRequest): AsyncIterable<AgentEvent> {
     queries: [req.question, `${req.question} latest news`, `${req.question} explained`],
     mood: "excited",
     emoji: "🪐",
+    topic: /news|today|week/i.test(req.question) ? "news" : "general",
   };
   yield { type: "stage", stage: "search", label: "Exploring 3 trails across the web" };
   await sleep(700);
@@ -42,6 +43,15 @@ export async function* runMock(req: AskRequest): AsyncIterable<AgentEvent> {
     yield { type: "token", text: word };
     await sleep(25);
   }
+  yield {
+    type: "quiz",
+    quiz: {
+      question: "Which NVIDIA model writes Rafiki's Deep Dive answers?",
+      options: ["Nemotron Nano", "Nemotron Ultra", "Nemotron Super"],
+      answer: 1,
+      explain: "Deep Dive hands the full pages to Nemotron 3 Ultra for serious reasoning.",
+    },
+  };
   yield { type: "related", questions: ["How does Nemotron reasoning work?", "What is Nebius Token Factory?", "Show me today's AI news"] };
   yield {
     type: "metrics",
