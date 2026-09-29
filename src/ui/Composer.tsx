@@ -55,7 +55,7 @@ export function Composer({ onAsk, busy, onStop }: { onAsk: (q: string, opts?: As
 
   return (
     <div className="composer-wrap">
-      <div className="mode-toggle" role="radiogroup" aria-label="Expedition type">
+      <div className="segmented" role="radiogroup" aria-label="Expedition type">
         {(["quick", "deep"] as const).map((m) => (
           <button
             key={m}
@@ -67,57 +67,60 @@ export function Composer({ onAsk, busy, onStop }: { onAsk: (q: string, opts?: As
               set({ mode: m });
             }}
           >
-            {mode === m && <motion.span layoutId="mode-pill" className="mode-pill" transition={{ type: "spring", stiffness: 400, damping: 30 }} />}
-            <span className="mode-label">
-              <Icon name={m === "quick" ? "quick" : "galaxy"} size={18} />
+            {mode === m && <motion.span layoutId="seg-thumb" className="seg-thumb" transition={{ type: "spring", stiffness: 500, damping: 32 }} />}
+            <span className="seg-label">
+              <Icon name={m === "quick" ? "bolt" : "planet"} size={20} />
               {m === "quick" ? "Quick trip" : "Deep Dive"}
-              <small>{m === "quick" ? "+20 XP" : "+40 XP"}</small>
             </span>
           </button>
         ))}
       </div>
-      <form
-        className={`composer ${listening ? "listening" : ""}`}
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
-      >
-        <Icon name="search" size={24} className="composer-icon" />
-        <input
-          ref={input}
-          value={listening ? interim : text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={listening ? "I'm all ears…" : "Where should we explore?"}
-          aria-label="Ask Rafiki"
-          readOnly={listening}
-        />
-        {busy ? (
-          <button type="button" className="send stop" onClick={onStop} aria-label="Stop">
-            ■
-          </button>
-        ) : (
-          text.trim() && (
-            <motion.button type="submit" className="send" aria-label="Send" initial={{ scale: 0 }} animate={{ scale: 1 }}>
-              <Icon name="rocket" size={24} />
-            </motion.button>
-          )
-        )}
+      <div className="composer-row">
+        <form
+          className={`composer ${listening ? "listening" : ""}`}
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
+          <Icon name="search" size={26} />
+          <input
+            ref={input}
+            value={listening ? interim : text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={listening ? "I'm all ears…" : "Where should we explore?"}
+            aria-label="Ask Rafiki"
+            readOnly={listening}
+          />
+          {busy ? (
+            <button type="button" className="btn small red" onClick={onStop} aria-label="Stop">
+              Stop
+            </button>
+          ) : (
+            text.trim() && (
+              <motion.button type="submit" className="btn small primary" aria-label="Go" initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                Go!
+              </motion.button>
+            )
+          )}
+        </form>
         {mic && (
           <motion.button
             type="button"
-            className={`mic ${listening ? "on" : ""}`}
+            className={`a-btn ${listening ? "on" : ""}`}
             aria-label={listening ? "Stop listening" : "Talk to Rafiki"}
             onClick={() => (listening ? stopListening() : talk())}
-            whileTap={{ scale: 0.9 }}
-            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.92 }}
           >
             {listening && <span className="ripple" />}
-            <Icon name="mic" size={30} />
+            <svg viewBox="0 0 32 32" width={30} height={30} aria-hidden>
+              <rect x={11} y={4} width={10} height={16} rx={5} fill="#fff" />
+              <path d="M7.5 15a8.5 8.5 0 0 0 17 0M16 23.5v4.5" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" />
+            </svg>
           </motion.button>
         )}
-      </form>
-      <div className="hint">{mic ? "Hold Space to talk · +5 XP for voice" : "Press / to type"}</div>
+      </div>
+      <div className="hint">{mic ? "Hold Space or tap the mic to talk" : "Press / to type"}</div>
     </div>
   );
 }

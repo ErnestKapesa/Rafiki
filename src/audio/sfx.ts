@@ -166,19 +166,88 @@ export const sfx = {
   error: () => note({ freq: 220, to: 160, dur: 0.2, gain: 0.1, type: "triangle" }),
 };
 
-/** Animal-Crossing-style babble: one blip per syllable, pitched by character. */
-export function babble(text: string, pitch = 1, onSyllable?: (i: number) => void) {
+/**
+ * "Animalese" babble: each syllable is a tiny sung vowel — a soft triangle +
+ * sine voice through two vowel formant filters, riding a gentle melody that
+ * lifts at the end of questions. Cute, never robotic.
+ */
+const FORMANTS: Record<string, [number, number]> = {
+  a: [800, 1200],
+  e: [500, 1900],
+  i: [320, 2400],
+  o: [500, 900],
+  u: [350, 800],
+  y: [320, 2200],
+};
+
+export function babble(text: string, pitch = 1.2, onSyllable?: (i: number) => void) {
   const c = unlockAudio();
-  const syllables = text.replace(/[^a-z ]/gi, "").match(/[bcdfghjklmnpqrstvwxyz]*[aeiouy]+/gi) ?? [];
-  const n = Math.min(syllables.length, 60);
-  const base = 330 * pitch;
-  syllables.slice(0, n).forEach((s, i) => {
-    const vowel = s.slice(-1).toLowerCase();
-    const f = base * ({ a: 1.0, e: 1.2, i: 1.35, o: 0.9, u: 0.8, y: 1.1 }[vowel] ?? 1) * (0.94 + Math.random() * 0.12);
-    note({ freq: f, to: f * 1.08, at: i * 0.075, dur: 0.07, gain: 0.07, type: "square", wet: false });
-    if (onSyllable) setTimeout(() => onSyllable(i), i * 75);
-  });
-  return new Promise<void>((r) => setTimeout(r, n * 75 + 120 + (c ? 0 : 0)));
+  const syllables = text.replace(/[^a-z ?!.,]/gi, "").match(/[bcdfghjklmnpqrstvwxz]*[aeiouy]+|[?!.,]/gi) ?? [];
+  const base = 290 * pitch;
+  let t = 0;
+  let i = 0;
+  const step = 0.068;
+  const question = /\?\s*$/.test(text);
+  const voiced = syllables.filter((s) => /[aeiouy]/i.test(s)).slice(0, 55);
+  const n = voiced.length;
+  for (const syl of syllables) {
+    if (i >= n) break;
+    if (/[.,!?]/.test(syl)) {
+      t += 0.12; // breathe at punctuation
+      continue;
+    }
+    const vowel = (syl.match(/[aeiouy]/i)?.[0] ?? "a").toLowerCase();
+    const [f1, f2] = FORMANTS[vowel];
+    // Melody: soft wave + small random wobble, rising at the end of a question.
+    const contour = 1 + 0.07 * Math.sin(i * 0.9) + (Math.random() - 0.5) * 0.05 + (question && i > n - 4 ? 0.12 * (i - (n - 4)) : 0);
+    const f = base * contour;
+    const at = c.currentTime + t;
+    const dur = step * (syl.length > 3 ? 1.25 : 1);
+    const out = c.createGain();
+    out.gain.setValueAtTime(0.0001, at);
+    out.gain.exponentialRampToValueAtTime(0.1, at + 0.012);
+    out.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    const b1 = c.createBiquadFilter();
+    b1.type = "bandpass";
+    b1.frequency.value = f1;
+    b1.Q.value = 4;
+    const b2 = c.createBiquadFilter();
+    b2.type = "bandpass";
+    b2.frequency.value = f2;
+    b2.Q.value = 5;
+    for (const [type, mult, g] of [
+      ["triangle", 1, 1],
+      ["sine", 2, 0.5],
+    ] as const) {
+      const o = c.createOscillator();
+      o.type = type;
+      o.frequency.setValueAtTime(f * mult * 0.97, at);
+      o.frequency.exponentialRampToValueAtTime(f * mult * 1.04, at + dur);
+      const og = c.createGain();
+      og.gain.value = g;
+      o.connect(og);
+      og.connect(b1);
+      og.connect(b2);
+      og.connect(out); // a little raw body under the formants
+      o.start(at);
+      o.stop(at + dur + 0.03);
+    }
+    const f1g = c.createGain();
+    f1g.gain.value = 2.2;
+    const f2g = c.createGain();
+    f2g.gain.value = 1.4;
+    b1.connect(f1g).connect(out);
+    b2.connect(f2g).connect(out);
+    const trim = c.createGain();
+    trim.gain.value = 0.55;
+    out.connect(trim).connect(sfxBus);
+    trim.connect(space);
+    const idx = i;
+    if (onSyllable) setTimeout(() => onSyllable(idx), t * 1000);
+    t += dur;
+    i++;
+  }
+  return new Promise<void>((r) => setTimeout(r, t * 1000 + 150));
 }
 
 /* ------------------------------------------------------------------------ */

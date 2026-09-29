@@ -1,10 +1,11 @@
 import { motion, useSpring, useTransform } from "motion/react";
 import { useEffect } from "react";
-import { levelProgress, paletteOf, questsForDate, titleFor } from "../../shared/game";
+import { levelProgress, questsForDate, titleFor } from "../../shared/game";
 import { sfx } from "../audio/sfx";
 import { questProgress, utcDay } from "../game/engine";
 import { useGame } from "../game/store";
 import { useRafiki, type Sheet } from "../lib/store";
+import { Avatar } from "./Avatar";
 import { Icon } from "./Icon";
 
 /** Counts up smoothly whenever the value changes (numbers feel earned). */
@@ -15,87 +16,86 @@ function Ticker({ value }: { value: number }) {
   return <motion.span>{text}</motion.span>;
 }
 
-const SPECIES_ICON: Record<string, string> = { bear: "bear", bunny: "bunny", cat: "cat", sprout: "sprout", antenna: "antenna", unicorn: "unicorn" };
+const DOCK: { sheet: Exclude<Sheet, null>; icon: string; label: string; tint: string }[] = [
+  { sheet: "quests", icon: "target", label: "Quests", tint: "#FFE3E3" },
+  { sheet: "wardrobe", icon: "hanger", label: "Closet", tint: "#FFE4F0" },
+  { sheet: "galaxy", icon: "planet", label: "Galaxy", tint: "#EEE6FF" },
+  { sheet: "badges", icon: "trophy", label: "Badges", tint: "#FFF2CC" },
+  { sheet: "leaders", icon: "crown", label: "Ranks", tint: "#E3F8EC" },
+  { sheet: "journal", icon: "book", label: "Journal", tint: "#FFEBD9" },
+  { sheet: "settings", icon: "gear", label: "Settings", tint: "#EDEFF6" },
+];
 
 export function Hud() {
   const profile = useGame((g) => g.s.profile);
   const s = useGame((g) => g.s);
   const bump = useGame((g) => g.bump);
   const online = useGame((g) => g.online);
-  const setSheet = (sheet: Sheet) => {
+  const open = (sheet: Sheet) => {
     sfx.open();
     useRafiki.getState().set({ sheet });
   };
   const lp = levelProgress(profile.xp);
-  const pal = paletteOf(profile.character.color);
   const today = utcDay(new Date());
   const prog = questProgress(s, today);
-  const quests = questsForDate(today);
-  const claimable = quests.filter((q) => prog[q.counter] >= q.goal && !s.questClaims.some((c) => c.questId === q.id && c.day === today)).length;
+  const claimable = questsForDate(today).filter((q) => prog[q.counter] >= q.goal && !s.questClaims.some((c) => c.questId === q.id && c.day === today)).length;
 
   return (
     <>
       <header className="hud">
-        <motion.button className="me" onClick={() => setSheet("wardrobe")} whileHover={{ y: -2 }} whileTap={{ scale: 0.96 }} title="Wardrobe">
-          <span className="avatar" style={{ background: `radial-gradient(circle at 35% 30%, #fff8, ${pal.body})` }}>
-            <Icon name={SPECIES_ICON[profile.character.species]} size={30} />
-            <svg className="ring" viewBox="0 0 44 44" aria-hidden>
-              <circle cx="22" cy="22" r="20" />
-              <motion.circle cx="22" cy="22" r="20" className="fill" initial={false} animate={{ pathLength: lp.pct }} transition={{ type: "spring", stiffness: 60 }} />
-            </svg>
-            <span className="lvl">{lp.level}</span>
+        <motion.button className="player" onClick={() => open("wardrobe")} whileTap={{ scale: 0.95, y: 3 }} title="Closet">
+          <span className="player-pic">
+            <Avatar c={profile.character} size={46} />
+            <span className="lvl-star">
+              <Icon name="star" size={26} />
+              <b>{lp.level}</b>
+            </span>
           </span>
-          <span className="who">
+          <span className="player-info">
             <b>{profile.friendName}</b>
-            <small>
-              {titleFor(lp.level)} · {lp.into}/{lp.span} XP
-            </small>
+            <span className="xpbar" aria-label={`${lp.into} of ${lp.span} XP to next level`}>
+              <motion.i initial={false} animate={{ width: `${Math.max(4, lp.pct * 100)}%` }} transition={{ type: "spring", stiffness: 70, damping: 14 }} />
+            </span>
+            <small>{titleFor(lp.level)}</small>
           </span>
         </motion.button>
 
-        <div className="counters">
-          <motion.div className="counter" key={`x${bump}`} initial={{ scale: 1.25 }} animate={{ scale: 1 }} title="Experience">
-            <Icon name="xp" size={26} />
+        <div className="status">
+          <motion.span className="stat" key={`x${bump}`} initial={{ scale: 1.3 }} animate={{ scale: 1 }} title="Experience">
+            <Icon name="star" size={24} />
             <Ticker value={profile.xp} />
-          </motion.div>
-          <motion.div className="counter" key={`g${bump}`} initial={{ scale: 1.25 }} animate={{ scale: 1 }} title="Stardust — spend it in the wardrobe">
-            <Icon name="gem" size={26} />
+          </motion.span>
+          <motion.span className="stat" key={`g${bump}`} initial={{ scale: 1.3 }} animate={{ scale: 1 }} title="Stardust — spend it in the Closet">
+            <Icon name="gem" size={24} />
             <Ticker value={profile.stardust} />
-          </motion.div>
-          <div className={`counter ${profile.streak ? "" : "dim"}`} title="Daily streak">
-            <Icon name="streak" size={26} />
+          </motion.span>
+          <span className={`stat ${profile.streak ? "" : "dim"}`} title="Daily streak">
+            <Icon name="flame" size={24} />
             <span>{profile.streak}</span>
-          </div>
-          {online && <span className="sync" title="Progress synced to the cloud" />}
+          </span>
+          {online && <span className="sync" title="Saved to the cloud" />}
         </div>
       </header>
 
-      <nav className="rail" aria-label="Game menu">
-        {(
-          [
-            ["quests", "quest", "Quests", claimable],
-            ["wardrobe", "palette", "Wardrobe", 0],
-            ["galaxy", "galaxy", "Galaxy", 0],
-            ["badges", "trophy", "Badges", 0],
-            ["leaders", "crown", "Leaders", 0],
-            ["journal", "journal", "Journal", 0],
-            ["settings", "gear", "Settings", 0],
-          ] as const
-        ).map(([sheet, icon, label, badge], i) => (
+      <nav className="dock" aria-label="Menu">
+        {DOCK.map((d, i) => (
           <motion.button
-            key={sheet}
-            className="rail-btn"
-            onClick={() => setSheet(sheet)}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 + i * 0.05 }}
-            whileHover={{ scale: 1.08, rotate: -3 }}
-            whileTap={{ scale: 0.92 }}
-            aria-label={label}
+            key={d.sheet}
+            className="dock-btn"
+            style={{ ["--tint" as string]: d.tint }}
+            onClick={() => open(d.sheet)}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 + i * 0.04, type: "spring", stiffness: 400, damping: 22 }}
+            whileHover={{ y: -4 }}
+            whileTap={{ scale: 0.9, y: 2 }}
+            aria-label={d.label}
           >
-            <Icon name={icon} size={30} />
-            <span className="rail-label">{label}</span>
-            {badge > 0 && <span className="dot-badge">{badge}</span>}
+            <span className="dock-tile">
+              <Icon name={d.icon} size={30} />
+            </span>
+            <span className="dock-label">{d.label}</span>
+            {d.sheet === "quests" && claimable > 0 && <span className="dot-badge">{claimable}</span>}
           </motion.button>
         ))}
       </nav>

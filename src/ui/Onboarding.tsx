@@ -46,15 +46,19 @@ export function Onboarding() {
       <AnimatePresence mode="wait">
         {step === "orb" && (
           <motion.div key="orb" className="ob-orb" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 1.05 }}>
-            <motion.h1 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }}>
-              rafiki
+            <motion.h1 className="wordmark" initial={{ y: 20, opacity: 0, scale: 0.8 }} animate={{ y: 0, opacity: 1, scale: 1 }} transition={{ delay: 0.4, type: "spring", stiffness: 260, damping: 14 }}>
+              {"rafiki".split("").map((ch, i) => (
+                <span key={i} style={{ animationDelay: `${i * 0.12}s` }}>
+                  {ch}
+                </span>
+              ))}
             </motion.h1>
             <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}>
               Something is stirring among the stars…
             </motion.p>
             <button className="orb-hit" onClick={hatch} aria-label="Hatch your friend" />
-            <motion.button className="pill-btn glow" onClick={hatch} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.6 }} whileTap={{ scale: 0.95 }}>
-              <Icon name="egg" size={24} /> Tap to hatch
+            <motion.button className="btn yellow big-cta" onClick={hatch} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.6 }} whileTap={{ scale: 0.95 }}>
+              <Icon name="egg" size={28} /> Tap to hatch
             </motion.button>
           </motion.div>
         )}
@@ -75,11 +79,14 @@ export function Onboarding() {
               speak(`Nice to meet you, ${you.trim()}! Now make me look awesome.`);
             }}
           >
-            <div className="ob-bubble">Jambo! I just hatched. What's your name?</div>
+            <div className="dialog">
+              <span className="nametag">???</span>
+              <p>Jambo! I just hatched! What's your name?</p>
+            </div>
             <div className="ob-input">
               <input autoFocus value={you} onChange={(e) => setYou(e.target.value)} placeholder="Your name" maxLength={32} aria-label="Your name" />
-              <motion.button type="submit" className="round-go" disabled={!you.trim()} whileTap={{ scale: 0.9 }} aria-label="Next">
-                →
+              <motion.button type="submit" className="btn small primary" disabled={!you.trim()} whileTap={{ scale: 0.9 }} aria-label="Next">
+                Next
               </motion.button>
             </div>
           </motion.form>
@@ -87,9 +94,8 @@ export function Onboarding() {
 
         {step === "friend" && (
           <motion.div key="friend" className="ob-customize sheet-card" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
-            <h2>
-              <Icon name="palette" size={30} float /> Make me yours
-            </h2>
+            <div className="grabber" />
+            <h2>Make me yours</h2>
             <label className="field">
               <span>My name</span>
               <input value={friend} onChange={(e) => setFriend(e.target.value)} maxLength={24} />
@@ -102,8 +108,8 @@ export function Onboarding() {
               ))}
             </div>
             <Customizer value={look} onChange={change} tab={tab} freeOnly />
-            <motion.button className="pill-btn primary big" onClick={finish} whileTap={{ scale: 0.96 }} whileHover={{ y: -2 }}>
-              <Icon name="rocket" size={26} /> Let's explore!
+            <motion.button className="btn primary big" onClick={finish} whileTap={{ scale: 0.96 }}>
+              <Icon name="rocket" size={28} /> Let's explore!
             </motion.button>
           </motion.div>
         )}

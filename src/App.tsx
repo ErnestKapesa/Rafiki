@@ -13,13 +13,13 @@ import { Icon } from "./ui/Icon";
 import { Onboarding } from "./ui/Onboarding";
 import { RewardLayer } from "./ui/RewardLayer";
 import { Sheets } from "./ui/Sheets";
-import { speak, stopSpeaking } from "./voice/voice";
+import { speak, stopSpeaking, warmVoice } from "./voice/voice";
 
 const IDEAS = [
   { q: "What happened in AI this week?", icon: "news" },
-  { q: "How do black holes evaporate?", icon: "galaxy" },
+  { q: "How do black holes evaporate?", icon: "planet" },
   { q: "Best hikes near Nairobi", icon: "map" },
-  { q: "Why do cats purr?", icon: "cat" },
+  { q: "Why do cats purr?", icon: "paw" },
 ];
 
 export default function App() {
@@ -41,7 +41,10 @@ export default function App() {
       .catch(() => {});
     void useGame.getState().init();
     if (!useGame.getState().onboarded) set({ onboardStep: "orb", hatched: false });
-    const unlock = () => unlockAudio();
+    const unlock = () => {
+      unlockAudio();
+      warmVoice(); // start downloading the cute neural voice in the background
+    };
     window.addEventListener("pointerdown", unlock, { once: true });
     window.addEventListener("keydown", unlock, { once: true });
   }, [set]);
@@ -147,7 +150,7 @@ export default function App() {
                         whileHover={{ scale: 1.05, y: -3 }}
                         whileTap={{ scale: 0.95 }}
                       >
-                        <Icon name={s.icon} size={22} /> {s.q}
+                        <Icon name={s.icon} size={24} /> {s.q}
                       </motion.button>
                     ))}
                   </div>
@@ -175,8 +178,8 @@ export default function App() {
 
           {sheet !== "wardrobe" && <Composer onAsk={onAsk} busy={busy} onStop={stop} />}
           {current && !sheet && (
-            <button className="new-trip" onClick={() => (stop(), sfx.tap(), set({ current: null }))} title="New expedition">
-              <Icon name="sparkles" size={20} /> New
+            <button className="btn white new-trip" onClick={() => (stop(), sfx.tap(), set({ current: null }))} title="New expedition">
+              <Icon name="home" size={22} /> Home
             </button>
           )}
           <Sheets onOpenAnswer={openAnswer} />
@@ -187,8 +190,9 @@ export default function App() {
   );
 }
 
-/** Speech bubble with a typewriter reveal. */
+/** Animal-Crossing-style dialog: name tag, typewriter text, bouncing "next" arrow. */
 function Bubble({ text, thinking }: { text: string; thinking?: boolean }) {
+  const name = useGame((g) => g.s.profile.friendName);
   const [shown, setShown] = useState("");
   useEffect(() => {
     setShown("");
@@ -197,19 +201,24 @@ function Bubble({ text, thinking }: { text: string; thinking?: boolean }) {
       i += 2;
       setShown(text.slice(0, i));
       if (i >= text.length) clearInterval(id);
-    }, 22);
+    }, 24);
     return () => clearInterval(id);
   }, [text]);
+  const done = shown.length >= text.length;
   return (
-    <motion.div className={`bubble ${thinking ? "thinking" : ""}`} layout transition={{ type: "spring", stiffness: 300, damping: 25 }}>
-      {shown}
-      {thinking && (
-        <span className="dots">
-          <i />
-          <i />
-          <i />
-        </span>
-      )}
+    <motion.div className={`dialog ${thinking ? "thinking" : ""}`} layout initial={{ scale: 0.85, y: 10 }} animate={{ scale: 1, y: 0 }} transition={{ type: "spring", stiffness: 380, damping: 22 }}>
+      <span className="nametag">{name}</span>
+      <p>
+        {shown}
+        {thinking && (
+          <span className="dots">
+            <i />
+            <i />
+            <i />
+          </span>
+        )}
+      </p>
+      {done && !thinking && <span className="next-arrow" aria-hidden />}
     </motion.div>
   );
 }

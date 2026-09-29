@@ -1,11 +1,20 @@
-import { babble, sfx } from "../audio/sfx";
+import { babble, sfx, unlockAudio } from "../audio/sfx";
 import { useRafiki } from "../lib/store";
 
 /* ------------------------------------------------------------------------ */
-/* Text-to-speech: Kokoro (open-source, in-browser) with Web Speech fallback */
+/* Text-to-speech                                                            */
+/*  cute   → Kokoro-82M neural voice (open-source, in-browser), pitched up   */
+/*           a touch for a small-character sound; babble while it loads      */
+/*  babble → soft "Animalese" syllables, fully synthesised                    */
+/*  system → the browser's built-in voice (natural voices preferred)          */
 /* ------------------------------------------------------------------------ */
 
+const KOKORO_VOICE = "af_sky"; // youthful, bright
+const KOKORO_SPEED = 1.0;
+const CUTE_PITCH = 1.12; // playback-rate lift → higher, bouncier, still natural
+
 let worker: Worker | null = null;
+let kokoro: "idle" | "loading" | "ready" | "failed" = "idle";
 let audioCtx: AudioContext | null = null;
 let currentSource: AudioBufferSourceNode | null = null;
 let speakId = 0;
@@ -18,26 +27,43 @@ function getWorker() {
   worker.onmessage = (e) => {
     const m = e.data;
     if (m.type === "progress") useRafiki.getState().set({ hdVoiceProgress: m.value });
-    else if (m.type === "ready") useRafiki.getState().set({ hdVoiceProgress: null });
-    else if (m.type === "audio") pending.get(m.id)?.({ samples: m.samples, rate: m.rate });
+    else if (m.type === "ready") {
+      kokoro = "ready";
+      useRafiki.getState().set({ hdVoiceProgress: null });
+    } else if (m.type === "audio") pending.get(m.id)?.({ samples: m.samples, rate: m.rate });
     else if (m.type === "error") {
+      if (m.id === -1) kokoro = "failed";
       pending.get(m.id)?.(null);
+      useRafiki.getState().set({ hdVoiceProgress: null });
       console.warn("[kokoro]", m.message);
     }
+  };
+  worker.onerror = () => {
+    kokoro = "failed";
+    useRafiki.getState().set({ hdVoiceProgress: null });
   };
   return worker;
 }
 
-export function enableHdVoice() {
-  useRafiki.getState().set({ voiceMode: "hd", hdVoiceProgress: 0 });
+/** Start downloading the neural voice in the background (call after a user gesture). */
+export function warmVoice() {
+  if (kokoro !== "idle" || useRafiki.getState().voiceMode !== "cute") return;
+  kokoro = "loading";
+  useRafiki.getState().set({ hdVoiceProgress: 0 });
   getWorker().postMessage({ type: "load" });
 }
 
+export const voiceStatus = () => kokoro;
+
 export function stopSpeaking() {
   speakId++;
-  currentSource?.stop();
+  try {
+    currentSource?.stop();
+  } catch {
+    /* already stopped */
+  }
   currentSource = null;
-  speechSynthesis?.cancel();
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
   cancelAnimationFrame(rafId);
   useRafiki.getState().mouth.value = 0;
 }
@@ -47,30 +73,54 @@ export async function speak(text: string) {
   if (s.voiceMode === "off" || !text) return;
   stopSpeaking();
   const id = speakId;
-  const clean = text.replace(/\[(\d+)\]/g, "").replace(/[*_#`]/g, "");
+  const clean = text.replace(/\[(\d+)\]/g, "").replace(/[*_#`]/g, "").trim();
 
+  if (s.voiceMode === "system") return speakWebSpeech(clean, id);
   if (s.voiceMode === "babble") return speakBabble(clean, id);
-  if (s.voiceMode === "hd" && s.hdVoiceProgress === null) {
-    const result = await new Promise<{ samples: Float32Array; rate: number } | null>((resolve) => {
-      pending.set(id, resolve);
-      getWorker().postMessage({ type: "speak", id, text: clean, voice: "af_heart" });
-    });
-    pending.delete(id);
+
+  // cute: neural voice when ready, otherwise charming babble (never a robot).
+  warmVoice();
+  if (kokoro !== "ready") return speakBabble(clean, id);
+  // Sentence streaming: synthesise sentence n+1 while sentence n is playing.
+  const parts = (clean.match(/[^.!?]+[.!?]*/g) ?? [clean]).map((p) => p.trim()).filter(Boolean).slice(0, 6);
+  let next = synth(parts[0], id);
+  for (let i = 0; i < parts.length; i++) {
+    const audio = await next;
     if (id !== speakId) return;
-    if (result) return playSamples(result.samples, result.rate, id);
+    if (!audio) return speakBabble(parts.slice(i).join(" "), id);
+    next = i + 1 < parts.length ? synth(parts[i + 1], id) : Promise.resolve(null);
+    await playSamples(audio.samples, audio.rate, id, i === parts.length - 1);
   }
-  return speakWebSpeech(clean, id);
 }
 
-function playSamples(samples: Float32Array, rate: number, id: number) {
+let synthSeq = 0;
+function synth(text: string, owner: number) {
+  const key = ++synthSeq * 1000 + (owner % 1000);
+  return new Promise<{ samples: Float32Array; rate: number } | null>((resolve) => {
+    pending.set(key, (v) => {
+      pending.delete(key);
+      resolve(v);
+    });
+    getWorker().postMessage({ type: "speak", id: key, text: text.slice(0, 300), voice: KOKORO_VOICE, speed: KOKORO_SPEED });
+  });
+}
+
+function playSamples(samples: Float32Array, rate: number, id: number, last = true) {
   audioCtx ??= new AudioContext();
+  if (audioCtx.state === "suspended") void audioCtx.resume();
   const buffer = audioCtx.createBuffer(1, samples.length, rate);
   buffer.copyToChannel(samples as Float32Array<ArrayBuffer>, 0);
   const src = audioCtx.createBufferSource();
   src.buffer = buffer;
+  src.playbackRate.value = CUTE_PITCH;
+  // A little air on top keeps the brighter voice sparkly rather than tinny.
+  const shelf = audioCtx.createBiquadFilter();
+  shelf.type = "highshelf";
+  shelf.frequency.value = 5000;
+  shelf.gain.value = 3;
   const analyser = audioCtx.createAnalyser();
   analyser.fftSize = 512;
-  src.connect(analyser).connect(audioCtx.destination);
+  src.connect(shelf).connect(analyser).connect(audioCtx.destination);
   currentSource = src;
   const data = new Uint8Array(analyser.fftSize);
   const { mouth, set } = useRafiki.getState();
@@ -88,51 +138,53 @@ function playSamples(samples: Float32Array, rate: number, id: number) {
   tick();
   return new Promise<void>((resolve) => {
     src.onended = () => {
-      if (id === speakId) finish();
+      cancelAnimationFrame(rafId);
+      if (id === speakId && last) finish();
       resolve();
     };
     src.start();
   });
 }
 
-/** Animal-Crossing-style gibberish with a flapping mouth. */
+/** Animalese-style babble with a flapping mouth. */
 async function speakBabble(text: string, id: number) {
+  unlockAudio();
   const { mouth, set } = useRafiki.getState();
   set({ pose: "speaking" });
-  await babble(text.slice(0, 220), 1.15, () => {
-    if (id === speakId) mouth.value = 0.7 + Math.random() * 0.3;
+  await babble(text.slice(0, 200), 1.2, () => {
+    if (id === speakId) mouth.value = 0.65 + Math.random() * 0.35;
     setTimeout(() => {
-      if (id === speakId) mouth.value = 0.1;
-    }, 45);
+      if (id === speakId) mouth.value = 0.08;
+    }, 50);
   });
   if (id === speakId) finish();
 }
 
 function pickVoice() {
-  const voices = speechSynthesis.getVoices();
-  const prefs = [/Samantha/, /Google UK English Female/, /Microsoft (Aria|Jenny)/, /Google US English/, /en-GB/, /en-US/];
+  const voices = speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
+  // Neural "Natural"/"Enhanced"/"Premium" voices sound far less robotic.
+  const prefs = [/Ana Online \(Natural\)/, /(Aria|Jenny|Emma|Ava).*(Natural|Online)/, /(Enhanced|Premium)/, /Samantha/, /Google US English/, /Google UK English Female/];
   for (const p of prefs) {
-    const v = voices.find((v) => p.test(v.name) || p.test(v.lang));
+    const v = voices.find((v) => p.test(v.name));
     if (v) return v;
   }
-  return voices.find((v) => v.lang.startsWith("en"));
+  return voices[0];
 }
 
 function speakWebSpeech(text: string, id: number) {
-  if (!("speechSynthesis" in window)) return;
+  if (!("speechSynthesis" in window)) return speakBabble(text, id);
   const u = new SpeechSynthesisUtterance(text);
   const v = pickVoice();
   if (v) u.voice = v;
-  u.rate = 1.04;
-  u.pitch = 1.25; // a little higher — Rafiki is small
+  u.rate = 1.05;
+  u.pitch = 1.35;
   const { mouth, set } = useRafiki.getState();
   let energy = 0;
-  u.onboundary = () => (energy = 1); // each word gives the mouth a kick
-  // Web Speech gives no audio stream, so we synthesise plausible jaw motion.
+  u.onboundary = () => (energy = 1);
   const tick = (t: number) => {
     energy *= 0.9;
-    const babble = 0.35 + 0.35 * Math.abs(Math.sin(t / 70)) * Math.abs(Math.sin(t / 43));
-    mouth.value += (Math.max(babble, energy) - mouth.value) * 0.35;
+    const b = 0.35 + 0.35 * Math.abs(Math.sin(t / 70)) * Math.abs(Math.sin(t / 43));
+    mouth.value += (Math.max(b, energy) - mouth.value) * 0.35;
     rafId = requestAnimationFrame(tick);
   };
   return new Promise<void>((resolve) => {

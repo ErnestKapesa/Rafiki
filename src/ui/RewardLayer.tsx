@@ -88,7 +88,7 @@ export function RewardLayer() {
                   <p>{badgeDef(celebration.badge).desc}</p>
                 </>
               )}
-              <motion.button className="pill-btn primary big" onClick={() => useGame.getState().popCelebration()} whileTap={{ scale: 0.95 }}>
+              <motion.button className="btn primary big" onClick={() => useGame.getState().popCelebration()} whileTap={{ scale: 0.95 }}>
                 Yay! <Icon name="party" size={24} />
               </motion.button>
             </motion.div>

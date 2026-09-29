@@ -6,18 +6,19 @@ import { questProgress, statsOf, utcDay } from "../game/engine";
 import { todaysQuests, useGame, type LeaderRow } from "../game/store";
 import { useRafiki, type Answer, type Sheet as SheetId, type VoiceMode } from "../lib/store";
 import { saveProgressWithEmail, supabase } from "../lib/supabase";
-import { enableHdVoice, speak } from "../voice/voice";
-import { Customizer, SPECIES, type Tab } from "./Customizer";
+import { speak, warmVoice } from "../voice/voice";
+import { Avatar, topicIcon } from "./Avatar";
+import { Customizer, type Tab } from "./Customizer";
 import { Icon } from "./Icon";
 
 const Galaxy = lazy(() => import("./Galaxy"));
 
 const META: Record<Exclude<SheetId, null>, { title: string; icon: string }> = {
   quests: { title: "Daily quests", icon: "quest" },
-  wardrobe: { title: "Wardrobe", icon: "palette" },
+  wardrobe: { title: "Closet", icon: "hanger" },
   galaxy: { title: "Knowledge galaxy", icon: "galaxy" },
   badges: { title: "Trophy case", icon: "trophy" },
-  leaders: { title: "Explorer leaderboard", icon: "crown" },
+  leaders: { title: "Explorer ranks", icon: "crown" },
   journal: { title: "Journal", icon: "journal" },
   settings: { title: "Settings", icon: "gear" },
 };
@@ -51,8 +52,9 @@ export function Sheets({ onOpenAnswer }: { onOpenAnswer: (a: Answer) => void }) 
             exit={{ opacity: 0, y: 30, scale: 0.97 }}
             transition={{ type: "spring", stiffness: 260, damping: 28 }}
           >
+            <div className="grabber" />
             <header className="sheet-head">
-              <Icon name={META[sheet].icon} size={34} float />
+              <Icon name={META[sheet].icon} size={38} float />
               <h2>{META[sheet].title}</h2>
               <button className="x" onClick={close} aria-label="Close">
                 ✕
@@ -123,7 +125,7 @@ function Quests() {
                   <Icon name="check" size={22} /> Done
                 </span>
               ) : (
-                <motion.button className="pill-btn primary" disabled={!done} onClick={() => useGame.getState().claim(q.id)} whileTap={{ scale: 0.92 }} animate={done ? { scale: [1, 1.06, 1] } : {}} transition={{ repeat: done ? Infinity : 0, duration: 1.4 }}>
+                <motion.button className="btn primary small" disabled={!done} onClick={() => useGame.getState().claim(q.id)} whileTap={{ scale: 0.92 }} animate={done ? { scale: [1, 1.06, 1] } : {}} transition={{ repeat: done ? Infinity : 0, duration: 1.4 }}>
                   <Icon name="gift" size={20} /> Claim
                 </motion.button>
               )}
@@ -191,7 +193,7 @@ function Wardrobe() {
       <div className="wardrobe-foot">
         {needed ? (
           <motion.button
-            className="pill-btn primary big"
+            className="btn primary big"
             disabled={level < needed.minLevel || profile.stardust < needed.price}
             onClick={() => useGame.getState().buy(needed.id)}
             whileTap={{ scale: 0.95 }}
@@ -202,7 +204,7 @@ function Wardrobe() {
           </motion.button>
         ) : (
           <motion.button
-            className="pill-btn primary big"
+            className="btn primary big"
             disabled={!dirty}
             onClick={() => {
               const err = useGame.getState().wear(draft);
@@ -271,8 +273,8 @@ function Leaders() {
         {list.map((r, i) => (
           <motion.li key={i} className={r.is_me ? "me" : ""} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}>
             <span className="rank">{r.rank <= 3 ? <Icon name={["trophy", "medal", "medal"][r.rank - 1]} size={28} /> : r.rank}</span>
-            <span className="avatar sm" style={{ background: paletteOf(r.avatar?.color ?? "peach").body }}>
-              <Icon name={SPECIES.find((s) => s.id === r.avatar?.species)?.icon ?? "bear"} size={24} />
+            <span className="avatar sm">
+              <Avatar c={{ species: r.avatar?.species ?? "bear", color: r.avatar?.color ?? "peach", eyes: r.avatar?.eyes ?? "round" }} size={40} />
             </span>
             <span className="lname">
               <b>{r.display_name}</b>
@@ -303,7 +305,9 @@ function Journal({ onOpen }: { onOpen: (a: Answer) => void }) {
       <div className="journal-list">
         {journal.map((a) => (
           <button key={a.id} className="journal-item" onClick={() => onOpen(a)}>
-            <span className="j-emoji">{a.emoji}</span>
+            <span className="j-emoji">
+              <Icon name={topicIcon(a)} size={28} />
+            </span>
             <span>
               <b>{a.question}</b>
               <small>
@@ -332,8 +336,8 @@ function Journal({ onOpen }: { onOpen: (a: Answer) => void }) {
           </b>
           <div className="ob-input light">
             <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" aria-label="Email" />
-            <button className="round-go" type="submit" aria-label="Save">
-              →
+            <button className="btn small primary" type="submit" aria-label="Save">
+              Save
             </button>
           </div>
           {sent && <small>{sent}</small>}
@@ -356,14 +360,14 @@ function Settings() {
     sfx.tap();
   };
   const voices: { id: VoiceMode; name: string; icon: string; note: string }[] = [
-    { id: "speech", name: "Voice", icon: "speak", note: "Your browser's speech" },
-    { id: "hd", name: "HD voice", icon: "studio", note: "Kokoro-82M, open-source, runs in your browser (~90 MB once)" },
-    { id: "babble", name: "Babble", icon: "speech", note: "Cute critter gibberish" },
-    { id: "off", name: "Silent", icon: "muted", note: "Text only" },
+    { id: "cute", name: "Cute voice", icon: "sparkle", note: hdProgress !== null ? `Learning to talk… ${Math.round(hdProgress * 100)}%` : "Neural Kokoro voice, runs on your device" },
+    { id: "babble", name: "Babble", icon: "chat", note: "Critter-speak, like a village friend" },
+    { id: "system", name: "System", icon: "mic", note: "Your device's built-in voice" },
+    { id: "off", name: "Quiet", icon: "muted", note: "Text only" },
   ];
   return (
     <>
-      <h4>Rafiki's voice</h4>
+      <h4>Voice</h4>
       <div className="opt-grid voices">
         {voices.map((v) => (
           <motion.button
@@ -371,16 +375,16 @@ function Settings() {
             className={`opt wide ${voiceMode === v.id ? "on" : ""}`}
             whileTap={{ scale: 0.95 }}
             onClick={() => {
-              if (v.id === "hd") enableHdVoice();
-              else useRafiki.getState().set({ voiceMode: v.id });
+              useRafiki.getState().set({ voiceMode: v.id });
               sfx.pop();
-              if (v.id !== "off" && v.id !== "hd") setTimeout(() => speak("Hi! This is how I sound."), 50);
+              if (v.id === "cute") warmVoice();
+              if (v.id !== "off") setTimeout(() => speak("Hi hi! This is how I sound!"), 60);
             }}
           >
             <Icon name={v.icon} size={36} />
             <span>
               <b>{v.name}</b>
-              <small>{v.id === "hd" && hdProgress !== null ? `Downloading ${Math.round(hdProgress * 100)}%` : v.note}</small>
+              <small>{v.note}</small>
             </span>
           </motion.button>
         ))}

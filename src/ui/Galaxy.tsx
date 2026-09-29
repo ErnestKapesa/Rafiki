@@ -146,7 +146,7 @@ function Star({
       {hovered && (
         <Html center position={[0, size + 0.25, 0]} style={{ pointerEvents: "none" }}>
           <div className="star-tip">
-            <span>{emoji}</span> {label}
+{label}
           </div>
         </Html>
       )}

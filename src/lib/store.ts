@@ -6,7 +6,7 @@ export type Pose = "idle" | "listening" | "thinking" | "searching" | "speaking" 
 
 export type Sheet = "quests" | "wardrobe" | "galaxy" | "badges" | "leaders" | "settings" | "journal" | null;
 export type OnboardStep = "orb" | "name" | "friend" | null;
-export type VoiceMode = "speech" | "babble" | "hd" | "off";
+export type VoiceMode = "cute" | "babble" | "system" | "off";
 
 export type Answer = {
   id: string; // also the game-engine exploration id once rewarded
@@ -77,7 +77,10 @@ const write = (key: string, v: unknown) => {
 export const useRafiki = create<State>((set, get) => ({
   pose: "idle",
   mode: "quick",
-  voiceMode: read<VoiceMode>(VOICE_KEY, "speech"),
+  voiceMode: (() => {
+    const v = read<string>(VOICE_KEY, "cute");
+    return (["cute", "babble", "system", "off"].includes(v) ? v : "cute") as VoiceMode; // migrates old "speech"/"hd"
+  })(),
   hdVoiceProgress: null,
   interim: "",
   current: null,

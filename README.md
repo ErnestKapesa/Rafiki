@@ -21,9 +21,9 @@ Ask out loud or type. Rafiki plans the trip with **NVIDIA Nemotron**, scouts the
 | 🎯 **Daily quests, streaks, badges, levels** | Three rotating quests a day, a streak flame, 10 badges, 8 level titles from *Stargazer* to *Cosmic Sage*, and a wardrobe shop where you spend stardust. |
 | 🌌 **Knowledge galaxy** | A 3D star map of everything you've explored. Deep Dives burn violet and news stories blue, and each trail is a constellation. |
 | 🏆 **Leaderboard** | A global ranking of explorers, powered by Supabase. |
-| 🗣️ **Voice in, voice out** | Push-to-talk (hold <kbd>Space</kbd>). Four voices: browser speech, **HD** (open-source Kokoro-82M running in your browser), **Babble** (cute critter gibberish), or silent. The lips sync to the real audio amplitude. |
+| 🗣️ **Voice in, voice out** | Push-to-talk (hold <kbd>Space</kbd>). Default **Cute voice**: open-source Kokoro-82M running in your browser, pitched up a touch and streamed sentence by sentence; while it loads Rafiki speaks soft Animalese-style **Babble**. There's also the system voice or silent. The lips sync to the real audio amplitude. |
 | 🔊 **Sound design** | Every sound effect and the ambient music box is synthesized live with the Web Audio API: pops, coins, gem sparkles, discovery chimes, level-up fanfares. No audio files at all. |
-| 🎨 **Real 3D icons** | Microsoft Fluent Emoji 3D (MIT) across the whole UI. |
+| 🎨 **Original sticker icons** | A hand-drawn SVG icon set and character avatars made for Rafiki — no emoji anywhere. |
 | 🔌 **MCP server** | Rafiki's research is exposed as MCP tools for Claude Desktop, Cursor, Hermes Agent, NemoClaw, and other MCP clients. |
 
 ---
@@ -120,7 +120,7 @@ npm run deploy
 | `npm test` | Unit tests: game rules, level curve, streaks, trail caps, quest claiming, **engine ↔ SQL parity** (scenario and 45 days of quest picks), the stream splitter under every chunk size, and quiz shuffling |
 | `npm run test:sql` | Runs the migration on a throwaway Postgres with a stubbed `auth` schema and checks rewards, rate limits, RLS isolation, blocked direct writes, purchases, character validation, quest claims and the leaderboard |
 | `npm run e2e` | Plays the game in headless Chromium at desktop and phone sizes: hatch → name → customize → expedition → discover worlds → quiz → trail → quests → badges → wardrobe purchase → galaxy → leaderboard → reload persistence. Asserts exact XP and stardust at each step, plus zero runtime errors (start `RAFIKI_MOCK=1 npm run dev` first) |
-| `/#gallery` | Visual QA sheet of every species, colour and accessory |
+| `/#gallery`, `/#icons` | Visual QA sheets: every species/colour/accessory in 3D, and the full sticker icon set |
 
 ## 🔌 MCP
 
@@ -145,4 +145,4 @@ supabase/   migrations/ (schema, RLS, RPCs)             tests/  unit, sql, e2e
 
 ## 📜 License & credits
 
-[MIT](LICENSE) © Ernest Kapesa. 3D icons: [Microsoft Fluent Emoji](https://github.com/microsoft/fluentui-emoji) (MIT, see `public/icons/LICENSE-fluentui-emoji.txt`). Voice: [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) (Apache-2.0).
+[MIT](LICENSE) © Ernest Kapesa. Voice: [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) (Apache-2.0).

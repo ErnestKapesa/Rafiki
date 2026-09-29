@@ -195,9 +195,9 @@ export const SHOP: ShopItem[] = [
   { id: "crown", name: "Crown", icon: "crown", kind: "hat", price: 150, minLevel: 5 },
   { id: "glasses", name: "Reading glasses", icon: "glasses", kind: "face", price: 50, minLevel: 1 },
   { id: "shades", name: "Cool shades", icon: "sunglasses", kind: "face", price: 70, minLevel: 2 },
-  { id: "coral", name: "Coral fur", icon: "palette", kind: "color", price: 50, minLevel: 1 },
-  { id: "midnight", name: "Midnight fur", icon: "night", kind: "color", price: 120, minLevel: 3 },
-  { id: "unicorn", name: "Unicorn horn", icon: "crystal", kind: "species", price: 100, minLevel: 4 },
+  { id: "coral", name: "Coral fur", icon: "paint", kind: "color", price: 50, minLevel: 1 },
+  { id: "midnight", name: "Midnight fur", icon: "moon", kind: "color", price: 120, minLevel: 3 },
+  { id: "unicorn", name: "Unicorn horn", icon: "horn", kind: "species", price: 100, minLevel: 4 },
 ];
 
 export const STARTER_ITEMS = ["scarf"];

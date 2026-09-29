@@ -2,6 +2,7 @@ import { motion } from "motion/react";
 import { PALETTES, SHOP, levelFor, type Character, type EyeStyle, type Pattern, type Species } from "../../shared/game";
 import { sfx } from "../audio/sfx";
 import { useGame } from "../game/store";
+import { Avatar } from "./Avatar";
 import { Icon } from "./Icon";
 
 export const SPECIES: { id: Species; name: string; icon: string }[] = [
@@ -61,7 +62,7 @@ export function Customizer({ value, onChange, tab, freeOnly }: { value: Characte
         <div className="opt-grid">
           {SPECIES.filter((s) => !freeOnly || owned(s.id)).map((s) => (
             <motion.button key={s.id} className={`opt ${value.species === s.id ? "on" : ""}`} onClick={() => pick({ species: s.id })} whileTap={{ scale: 0.9 }} whileHover={{ y: -3 }}>
-              <Icon name={s.icon} size={40} />
+              <Avatar c={{ ...value, species: s.id }} size={46} />
               <span>{s.name}</span>
               <Lock id={s.id} />
             </motion.button>

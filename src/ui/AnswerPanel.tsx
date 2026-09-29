@@ -6,6 +6,7 @@ import { REWARDS } from "../../shared/game";
 import { answerQuiz, visitSource } from "../game/actions";
 import type { Answer } from "../lib/store";
 import { useRafiki } from "../lib/store";
+import { topicIcon } from "./Avatar";
 import { Icon } from "./Icon";
 
 const STAGES = [
@@ -30,8 +31,8 @@ export function AnswerPanel({ answer, onAsk }: { answer: Answer; onAsk: (q: stri
       transition={{ type: "spring", stiffness: 220, damping: 26 }}
     >
       <header className="panel-head">
-        <motion.span className="emoji" key={answer.emoji} initial={{ scale: 0, rotate: -40 }} animate={{ scale: 1, rotate: 0 }}>
-          {answer.emoji}
+        <motion.span className="emoji" key={topicIcon(answer)} initial={{ scale: 0, rotate: -40 }} animate={{ scale: 1, rotate: 0 }}>
+          <Icon name={topicIcon(answer)} size={36} />
         </motion.span>
         <div className="panel-title">
           <small className="eyebrow">

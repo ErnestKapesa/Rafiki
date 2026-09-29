@@ -449,7 +449,7 @@ export function WorldScene() {
   return (
     <Canvas
       className="world"
-      shadows
+      shadows="percentage"
       dpr={[1, 2]}
       camera={{ position: [0, 0.6, 7.6], fov: 36 }}
       gl={{ antialias: true, powerPreference: "high-performance" }}

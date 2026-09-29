@@ -18,7 +18,7 @@ const shot = (p, name) => p.screenshot({ path: `${OUT}/${name}.png`, timeout: 90
 const dismiss = async (p, tag) => {
   for (let i = 0; i < 5 && (await p.locator(".celebrate").count()); i++) {
     if (i === 0) await shot(p, `${tag}-celebration-${Date.now() % 1000}`);
-    await p.locator(".celebrate-card .pill-btn").click();
+    await p.locator(".celebrate-card .btn").click();
     await p.waitForTimeout(600);
   }
 };
@@ -54,18 +54,18 @@ async function run(viewport, tag) {
   check((await p.locator(".opt", { hasText: "Unicorn" }).count()) === 0, `[${tag}] locked species hidden during onboarding`);
   await p.getByRole("button", { name: /Let's explore/ }).click();
   await p.waitForTimeout(1800);
-  check(await p.locator(".hud .me").isVisible(), `[${tag}] HUD appears after onboarding`);
-  check((await p.locator(".who b").innerText()) === "Rafiki", `[${tag}] friend name shown`);
+  check(await p.locator(".hud .player").isVisible(), `[${tag}] HUD appears after onboarding`);
+  check((await p.locator(".player-info b").innerText()) === "Rafiki", `[${tag}] friend name shown`);
   await shot(p, `${tag}-04-home`);
 
-  const xp0 = await num(p, ".counter >> nth=0");
+  const xp0 = await num(p, ".stat >> nth=0");
   await p.getByPlaceholder("Where should we explore?").fill("How do volcanoes work?");
   await p.keyboard.press("Enter");
   await p.waitForTimeout(1300);
   await shot(p, `${tag}-05-searching`);
   await p.waitForSelector(".quiz", { timeout: 40000 });
   await p.waitForTimeout(2500);
-  const xp1 = await num(p, ".counter >> nth=0");
+  const xp1 = await num(p, ".stat >> nth=0");
   check(xp1 === xp0 + 20, `[${tag}] expedition pays 20 XP (${xp0} → ${xp1})`);
   check((await p.locator(".toast").count()) > 0 || xp1 > xp0, `[${tag}] reward toast shown`);
   await shot(p, `${tag}-06-answer`);
@@ -79,14 +79,14 @@ async function run(viewport, tag) {
   await p.waitForTimeout(1500);
   check((await p.locator(".source.found").count()) === 2, `[${tag}] visiting sources marks them discovered`);
   check((await p.locator(".found-count").innerText()).startsWith("2/"), `[${tag}] worlds found counter updates`);
-  const xp2 = await num(p, ".counter >> nth=0");
+  const xp2 = await num(p, ".stat >> nth=0");
   check(xp2 === xp1 + 10, `[${tag}] each discovery pays 5 XP (${xp1} → ${xp2})`);
 
   // Pop quiz — mock answer is "Nemotron Ultra".
   await p.locator(".quiz-opt", { hasText: "Nemotron Ultra" }).click();
   await p.waitForTimeout(1200);
   check(await p.locator(".quiz.right").isVisible(), `[${tag}] correct quiz answer is celebrated`);
-  const xp3 = await num(p, ".counter >> nth=0");
+  const xp3 = await num(p, ".stat >> nth=0");
   check(xp3 === xp2 + 15, `[${tag}] quiz pays 15 XP (${xp2} → ${xp3})`);
   await shot(p, `${tag}-07-quiz`);
   await dismiss(p, tag);
@@ -96,7 +96,7 @@ async function run(viewport, tag) {
   await p.waitForSelector(".panel .eyebrow:has-text('on the trail')", { timeout: 20000 });
   await p.waitForSelector(".quiz", { timeout: 40000 });
   await p.waitForTimeout(2500);
-  const xp4 = await num(p, ".counter >> nth=0");
+  const xp4 = await num(p, ".stat >> nth=0");
   check(xp4 === xp3 + 25, `[${tag}] trail step pays 20 + 5 XP (${xp3} → ${xp4})`);
   await dismiss(p, tag);
 
@@ -108,20 +108,20 @@ async function run(viewport, tag) {
   };
   await open("Quests", "09-quests");
   check((await p.locator(".quest").count()) === 3, `[${tag}] three daily quests`);
-  await p.getByRole("button", { name: "Close" }).click();
+  await p.getByRole("button", { name: "Close", exact: true }).click();
   await p.waitForTimeout(500);
 
   await open("Badges", "10-badges");
   check((await p.locator(".badge.earned").count()) >= 1, `[${tag}] First Steps badge earned`);
-  await p.getByRole("button", { name: "Close" }).click();
+  await p.getByRole("button", { name: "Close", exact: true }).click();
   await p.waitForTimeout(500);
 
-  await open("Wardrobe", "11-wardrobe");
+  await open("Closet", "11-wardrobe");
   await p.getByRole("button", { name: "Hats" }).click();
   await p.locator(".opt", { hasText: "Beanie" }).click();
   await p.waitForTimeout(1200);
   await shot(p, `${tag}-12-tryon`);
-  const gems = await num(p, ".counter >> nth=1");
+  const gems = await num(p, ".stat >> nth=1");
   const buy = p.getByRole("button", { name: /Buy Beanie/ });
   check(await buy.isVisible(), `[${tag}] unowned item offers a buy button`);
   if (gems >= 30) {
@@ -130,26 +130,26 @@ async function run(viewport, tag) {
     await p.getByRole("button", { name: /Wear this look/ }).click();
     await p.waitForTimeout(1500);
     await dismiss(p, tag);
-    check((await num(p, ".counter >> nth=1")) === gems - 30, `[${tag}] buying spends 30 stardust`);
+    check((await num(p, ".stat >> nth=1")) === gems - 30, `[${tag}] buying spends 30 stardust`);
   }
-  await p.getByRole("button", { name: "Close" }).click();
+  await p.getByRole("button", { name: "Close", exact: true }).click();
   await p.waitForTimeout(800);
 
   await open("Galaxy", "13-galaxy");
   check(await p.locator(".galaxy canvas").isVisible(), `[${tag}] galaxy renders`);
   check((await p.locator(".galaxy-stats").innerText()).includes("2 stars"), `[${tag}] galaxy has a star per expedition`);
-  await p.getByRole("button", { name: "Close" }).click();
+  await p.getByRole("button", { name: "Close", exact: true }).click();
   await p.waitForTimeout(500);
-  await open("Leaders", "14-leaders");
-  await p.getByRole("button", { name: "Close" }).click();
+  await open("Ranks", "14-leaders");
+  await p.getByRole("button", { name: "Close", exact: true }).click();
   await open("Settings", "15-settings");
-  await p.getByRole("button", { name: "Close" }).click();
+  await p.getByRole("button", { name: "Close", exact: true }).click();
 
   // Persistence: reload keeps progress and skips onboarding.
   await p.reload({ waitUntil: "networkidle" });
   await p.waitForTimeout(1500);
   check(!(await p.locator(".ob-orb").count()), `[${tag}] reload skips onboarding`);
-  check((await num(p, ".counter >> nth=0")) === xp4, `[${tag}] XP persists across reload`);
+  check((await num(p, ".stat >> nth=0")) === xp4, `[${tag}] XP persists across reload`);
 
   check(errors.length === 0, `[${tag}] no runtime errors ${errors.length ? JSON.stringify(errors.slice(0, 3)) : ""}`);
   await ctx.close();
