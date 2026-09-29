@@ -26,10 +26,13 @@ export function rewardExploration(a: Answer) {
   if (r) for (const url of a.discovered) useGame.getState().discover(url, a.id);
 }
 
-/** Open a source and count it as a discovered world. Call from a click handler. */
-export function visitSource(a: Answer, s: Source, openTab = true) {
+/** Open a source in the in-app Reader and count it as a discovered world. */
+export function visitSource(a: Answer, s: Source, openReader = true) {
   if (!/^https?:\/\//i.test(s.url)) return; // never open javascript:/data: links from the web
-  if (openTab) window.open(s.url, "_blank", "noopener,noreferrer");
+  if (openReader) {
+    sfx.open();
+    useRafiki.getState().set({ reader: { url: s.url, title: s.title, domain: s.domain, favicon: s.favicon, answerId: a.id } });
+  }
   const cur = useRafiki.getState().current;
   const live = cur?.id === a.id ? cur : a; // props can be a render behind on fast clicks
   if (live.discovered.includes(s.url)) return;

@@ -333,6 +333,47 @@ const ICONS: Record<string, () => JSX.Element> = {
     </>
   ),
 
+  external: () => (
+    <>
+      <rect x={4.5} y={8.5} width={19} height={19} rx={4} fill="#fff" {...S} />
+      <path d="M15 17 27 5M19 4.5h8.5V13" fill="none" {...S} />
+    </>
+  ),
+  news2: () => (
+    <>
+      <rect x={4} y={6} width={24} height={20} rx={4} fill="#FF7A45" {...S} />
+      <rect x={8} y={10} width={9} height={7} rx={1.5} fill="#fff" {...T} />
+      <path d="M20 11h4M20 15h4M8 21h16" fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" />
+    </>
+  ),
+  grid: () => (
+    <>
+      <rect x={4} y={4} width={10} height={10} rx={3} fill="#FF8FBA" {...S} />
+      <rect x={18} y={4} width={10} height={10} rx={3} fill="#FFD23F" {...S} />
+      <rect x={4} y={18} width={10} height={10} rx={3} fill="#5CC8FF" {...S} />
+      <rect x={18} y={18} width={10} height={10} rx={3} fill="#7FE0B0" {...S} />
+    </>
+  ),
+  play: () => (
+    <>
+      <circle cx={16} cy={16} r={12.5} fill="#FF6FA5" {...S} />
+      <path d="M13 10.5v11l9-5.5z" fill="#fff" stroke="#fff" strokeWidth={1.5} strokeLinejoin="round" />
+    </>
+  ),
+  pause: () => (
+    <>
+      <circle cx={16} cy={16} r={12.5} fill="#FF6FA5" {...S} />
+      <path d="M13 11v10M19 11v10" stroke="#fff" strokeWidth={3.2} strokeLinecap="round" />
+    </>
+  ),
+  wand: () => (
+    <>
+      <path d="M5 27 19 13" stroke={INK} strokeWidth={5} strokeLinecap="round" />
+      <path d="M5 27 19 13" stroke="#B97BFF" strokeWidth={2.4} strokeLinecap="round" />
+      <path d={sparkle(22.5, 9.5, 6.5)} fill="#FFD23F" {...S} />
+    </>
+  ),
+
   /* wardrobe items */
   scarf: () => (
     <>

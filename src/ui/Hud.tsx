@@ -7,6 +7,7 @@ import { useGame } from "../game/store";
 import { useRafiki, type Sheet } from "../lib/store";
 import { Avatar } from "./Avatar";
 import { Icon } from "./Icon";
+import { useIsPhone } from "./useIsPhone";
 
 /** Counts up smoothly whenever the value changes (numbers feel earned). */
 function Ticker({ value }: { value: number }) {
@@ -17,6 +18,7 @@ function Ticker({ value }: { value: number }) {
 }
 
 const DOCK: { sheet: Exclude<Sheet, null>; icon: string; label: string; tint: string }[] = [
+  { sheet: "news", icon: "news2", label: "News", tint: "#FFE6D6" },
   { sheet: "quests", icon: "target", label: "Quests", tint: "#FFE3E3" },
   { sheet: "wardrobe", icon: "hanger", label: "Closet", tint: "#FFE4F0" },
   { sheet: "galaxy", icon: "planet", label: "Galaxy", tint: "#EEE6FF" },
@@ -35,6 +37,9 @@ export function Hud() {
     sfx.open();
     useRafiki.getState().set({ sheet });
   };
+  const phone = useIsPhone();
+  const sheet = useRafiki((st) => st.sheet);
+  const hasAnswer = useRafiki((st) => !!st.current);
   const lp = levelProgress(profile.xp);
   const today = utcDay(new Date());
   const prog = questProgress(s, today);
@@ -77,28 +82,66 @@ export function Hud() {
         </div>
       </header>
 
-      <nav className="dock" aria-label="Menu">
-        {DOCK.map((d, i) => (
-          <motion.button
-            key={d.sheet}
-            className="dock-btn"
-            style={{ ["--tint" as string]: d.tint }}
-            onClick={() => open(d.sheet)}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 + i * 0.04, type: "spring", stiffness: 400, damping: 22 }}
-            whileHover={{ y: -4 }}
-            whileTap={{ scale: 0.9, y: 2 }}
-            aria-label={d.label}
-          >
-            <span className="dock-tile">
-              <Icon name={d.icon} size={30} />
-            </span>
-            <span className="dock-label">{d.label}</span>
-            {d.sheet === "quests" && claimable > 0 && <span className="dot-badge">{claimable}</span>}
-          </motion.button>
-        ))}
-      </nav>
+      {phone ? (
+        <nav className="tabbar" aria-label="Menu">
+          {(
+            [
+              ["home", "home", "Home"],
+              ["news", "news2", "News"],
+              ["quests", "target", "Quests"],
+              ["wardrobe", "hanger", "Closet"],
+              ["more", "grid", "More"],
+            ] as const
+          ).map(([id, icon, label]) => {
+            const active = id === "home" ? !sheet && !hasAnswer : sheet === id || (id === "more" && ["galaxy", "badges", "leaders", "journal", "settings", "more"].includes(sheet ?? ""));
+            return (
+              <motion.button
+                key={id}
+                className={`tab ${active ? "on" : ""}`}
+                whileTap={{ scale: 0.88 }}
+                aria-label={label}
+                aria-current={active ? "page" : undefined}
+                onClick={() => {
+                  if (id === "home") {
+                    sfx.tap();
+                    useRafiki.getState().set({ sheet: null, current: null, reader: null, pose: "idle" });
+                  } else open(id);
+                }}
+              >
+                <span className="tab-icon">
+                  <Icon name={icon} size={26} />
+                  {id === "quests" && claimable > 0 && <span className="dot-badge">{claimable}</span>}
+                </span>
+                <span className="tab-label">{label}</span>
+                {active && <motion.i layoutId="tab-dot" className="tab-dot" />}
+              </motion.button>
+            );
+          })}
+        </nav>
+      ) : (
+        <nav className="dock" aria-label="Menu">
+          {DOCK.map((d, i) => (
+            <motion.button
+              key={d.sheet}
+              className="dock-btn"
+              style={{ ["--tint" as string]: d.tint }}
+              onClick={() => open(d.sheet)}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 + i * 0.04, type: "spring", stiffness: 400, damping: 22 }}
+              whileHover={{ y: -4 }}
+              whileTap={{ scale: 0.9, y: 2 }}
+              aria-label={d.label}
+            >
+              <span className="dock-tile">
+                <Icon name={d.icon} size={30} />
+              </span>
+              <span className="dock-label">{d.label}</span>
+              {d.sheet === "quests" && claimable > 0 && <span className="dot-badge">{claimable}</span>}
+            </motion.button>
+          ))}
+        </nav>
+      )}
     </>
   );
 }

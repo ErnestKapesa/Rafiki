@@ -1,24 +1,26 @@
-import type { AgentEvent, AskRequest } from "../../shared/types";
+import type { AgentEvent, AskRequest, Digest, NewsCategory, PageDigest, PageRead, RemixStyle, Source } from "../../shared/types";
 
-/** POST /api/ask and parse the Server-Sent Events stream. */
-async function post(req: AskRequest, signal?: AbortSignal, attempt = 0): Promise<Response> {
+async function post(path: string, body: unknown, signal?: AbortSignal, attempt = 0): Promise<Response> {
   try {
-    return await fetch("/api/ask", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(req),
-      signal,
-    });
+    return await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal });
   } catch (err) {
     // Wi-Fi hiccups (ERR_NETWORK_CHANGED etc.) — retry twice with a short backoff.
     if (signal?.aborted || attempt >= 2) throw err;
     await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
-    return post(req, signal, attempt + 1);
+    return post(path, body, signal, attempt + 1);
   }
 }
 
-export async function ask(req: AskRequest, onEvent: (e: AgentEvent) => void, signal?: AbortSignal) {
-  const res = await post(req, signal);
+async function json<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  const res = await post(path, body, signal);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? `Server said ${res.status}`);
+  return data as T;
+}
+
+/** POST and parse a Server-Sent Events stream of AgentEvents. */
+async function sse(path: string, body: unknown, onEvent: (e: AgentEvent) => void, signal?: AbortSignal) {
+  const res = await post(path, body, signal);
   if (!res.ok || !res.body) {
     onEvent({ type: "error", message: `Server said ${res.status}` });
     onEvent({ type: "done" });
@@ -43,3 +45,16 @@ export async function ask(req: AskRequest, onEvent: (e: AgentEvent) => void, sig
     }
   }
 }
+
+export const ask = (req: AskRequest, onEvent: (e: AgentEvent) => void, signal?: AbortSignal) => sse("/api/ask", req, onEvent, signal);
+
+export const remix = (
+  body: { question: string; markdown: string; sources: Source[]; style: RemixStyle },
+  onEvent: (e: AgentEvent) => void,
+  signal?: AbortSignal,
+) => sse("/api/remix", body, onEvent, signal);
+
+export const readPage = (url: string, signal?: AbortSignal) => json<PageRead>("/api/read", { url }, signal);
+export const pageTldr = (markdown: string, signal?: AbortSignal) => json<PageDigest>("/api/page", { markdown, mode: "tldr" }, signal);
+export const askPage = (markdown: string, question: string) => json<{ answer: string }>("/api/page", { markdown, mode: "ask", question });
+export const getDigest = (categories: NewsCategory[], signal?: AbortSignal) => json<Digest>("/api/digest", { categories }, signal);

@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useDragControls } from "motion/react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { BADGES, QUEST_POOL, REWARDS, SHOP, levelFor, paletteOf, titleFor, type Character } from "../../shared/game";
 import { audioPrefs, setAudioPrefs, sfx } from "../audio/sfx";
@@ -10,6 +10,7 @@ import { speak, warmVoice } from "../voice/voice";
 import { Avatar, topicIcon } from "./Avatar";
 import { Customizer, type Tab } from "./Customizer";
 import { Icon } from "./Icon";
+import { useIsPhone } from "./useIsPhone";
 
 const Galaxy = lazy(() => import("./Galaxy"));
 
@@ -21,6 +22,8 @@ const META: Record<Exclude<SheetId, null>, { title: string; icon: string }> = {
   leaders: { title: "Explorer ranks", icon: "crown" },
   journal: { title: "Journal", icon: "journal" },
   settings: { title: "Settings", icon: "gear" },
+  news: { title: "Daily Digest", icon: "news2" },
+  more: { title: "More", icon: "grid" },
 };
 
 export function Sheets({ onOpenAnswer }: { onOpenAnswer: (a: Answer) => void }) {
@@ -37,25 +40,36 @@ export function Sheets({ onOpenAnswer }: { onOpenAnswer: (a: Answer) => void }) 
   }, [sheet]);
 
   const full = sheet === "galaxy";
+  const phone = useIsPhone();
+  const drag = useDragControls();
+  const shown = sheet && sheet !== "news" ? sheet : null; // the digest has its own full-screen view
   return (
     <AnimatePresence>
-      {sheet && (
+      {shown && (
         <>
-          {sheet !== "wardrobe" && <motion.div className="scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={close} />}
+          {shown !== "wardrobe" && <motion.div className="scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={close} />}
           <motion.aside
-            key={sheet}
-            className={`sheet ${sheet} ${full ? "full" : ""}`}
+            key={shown}
+            className={`sheet ${shown} ${full ? "full" : ""}`}
             role="dialog"
-            aria-label={META[sheet].title}
-            initial={{ opacity: 0, y: 40, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 30, scale: 0.97 }}
-            transition={{ type: "spring", stiffness: 260, damping: 28 }}
+            aria-label={META[shown].title}
+            initial={phone ? { y: "100%" } : { opacity: 0, y: 40, scale: 0.97 }}
+            animate={phone ? { y: 0 } : { opacity: 1, y: 0, scale: 1 }}
+            exit={phone ? { y: "100%" } : { opacity: 0, y: 30, scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 300, damping: 32 }}
+            drag={phone ? "y" : false}
+            dragControls={drag}
+            dragListener={false}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.6 }}
+            onDragEnd={(_, i) => (i.offset.y > 110 || i.velocity.y > 600) && close()}
           >
-            <div className="grabber" />
-            <header className="sheet-head">
-              <Icon name={META[sheet].icon} size={38} float />
-              <h2>{META[sheet].title}</h2>
+            <div className="sheet-grab" onPointerDown={(e) => phone && drag.start(e)}>
+              <div className="grabber" />
+            </div>
+            <header className="sheet-head" onPointerDown={(e) => phone && drag.start(e)}>
+              <Icon name={META[shown].icon} size={38} float />
+              <h2>{META[shown].title}</h2>
               <button className="x" onClick={close} aria-label="Close">
                 ✕
               </button>
@@ -72,6 +86,7 @@ export function Sheets({ onOpenAnswer }: { onOpenAnswer: (a: Answer) => void }) 
               {sheet === "leaders" && <Leaders />}
               {sheet === "journal" && <Journal onOpen={(a) => (close(), onOpenAnswer(a))} />}
               {sheet === "settings" && <Settings />}
+              {sheet === "more" && <More />}
             </div>
           </motion.aside>
         </>
@@ -413,5 +428,39 @@ function Settings() {
         Reset local progress
       </button>
     </>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
+
+const MORE: { sheet: Exclude<SheetId, null>; icon: string; label: string; tint: string }[] = [
+  { sheet: "galaxy", icon: "planet", label: "Galaxy", tint: "#EEE6FF" },
+  { sheet: "badges", icon: "trophy", label: "Badges", tint: "#FFF2CC" },
+  { sheet: "leaders", icon: "crown", label: "Ranks", tint: "#E3F8EC" },
+  { sheet: "journal", icon: "book", label: "Journal", tint: "#FFEBD9" },
+  { sheet: "settings", icon: "gear", label: "Settings", tint: "#EDEFF6" },
+];
+
+function More() {
+  return (
+    <div className="more-grid">
+      {MORE.map((m, i) => (
+        <motion.button
+          key={m.sheet}
+          className="more-tile"
+          style={{ ["--tint" as string]: m.tint }}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: i * 0.04, type: "spring", stiffness: 400, damping: 20 }}
+          whileTap={{ scale: 0.92 }}
+          onClick={() => (sfx.open(), useRafiki.getState().set({ sheet: m.sheet }))}
+        >
+          <span className="dock-tile">
+            <Icon name={m.icon} size={34} />
+          </span>
+          <b>{m.label}</b>
+        </motion.button>
+      ))}
+    </div>
   );
 }

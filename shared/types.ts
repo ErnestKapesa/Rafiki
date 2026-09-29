@@ -44,3 +44,23 @@ export type AgentEvent =
   | { type: "metrics"; steps: StepMetric[] }
   | { type: "error"; message: string }
   | { type: "done" };
+
+/* ── Reader (in-app browser) ─────────────────────────────────────────── */
+export type PageRead = { url: string; title: string; markdown: string; embeddable: boolean; words: number };
+export type PageDigest = { summary: string; points: string[]; minutes: number };
+
+/* ── News digest ─────────────────────────────────────────────────────── */
+export type NewsCategory = "world" | "tech" | "science" | "business" | "africa" | "sports" | "health" | "culture";
+export type NewsStory = {
+  id: string;
+  category: NewsCategory;
+  headline: string;
+  summary: string;
+  why: string;
+  sources: Source[];
+  image?: string;
+};
+export type Digest = { date: string; stories: NewsStory[] };
+
+/* ── Answer remix ────────────────────────────────────────────────────── */
+export type RemixStyle = "simpler" | "points" | "deeper" | "views";

@@ -1,10 +1,13 @@
 import { create } from "zustand";
-import type { AgentEvent, Mode, Mood, Quiz, Source, Stage, StepMetric, Turn, WebImage } from "../../shared/types";
+import type { AgentEvent, Mode, Mood, Quiz, RemixStyle, Source, Stage, StepMetric, Turn, WebImage } from "../../shared/types";
 
 /** What Rafiki's body is doing — drives the 3D animation state machine. */
 export type Pose = "idle" | "listening" | "thinking" | "searching" | "speaking" | "happy" | "celebrate";
 
-export type Sheet = "quests" | "wardrobe" | "galaxy" | "badges" | "leaders" | "settings" | "journal" | null;
+export type Sheet = "quests" | "wardrobe" | "galaxy" | "badges" | "leaders" | "settings" | "journal" | "news" | "more" | null;
+
+/** A page open in the in-app Reader. */
+export type ReaderTarget = { url: string; title: string; domain: string; favicon?: string; answerId: string | null };
 export type OnboardStep = "orb" | "name" | "friend" | null;
 export type VoiceMode = "cute" | "babble" | "system" | "off";
 
@@ -32,6 +35,8 @@ export type Answer = {
   stageLabel: string;
   stageModel?: string;
   rewarded: boolean;
+  remixes?: Partial<Record<RemixStyle, string>>;
+  view?: RemixStyle | null; // which telling is shown (null = original)
   error?: string;
   at: number;
 };
@@ -46,6 +51,8 @@ type State = {
   journal: Answer[];
   hoveredSource: number | null;
   sheet: Sheet;
+  reader: ReaderTarget | null;
+  panelExpanded: boolean; // phone answer sheet: peek vs full
   onboardStep: OnboardStep;
   hatched: boolean; // orb has burst open → Rafiki visible
   /** 0..1 mouth openness, written every frame by the voice engine. */
@@ -87,6 +94,8 @@ export const useRafiki = create<State>((set, get) => ({
   journal: read<Answer[]>(JOURNAL_KEY, []),
   hoveredSource: null,
   sheet: null,
+  reader: null,
+  panelExpanded: false,
   onboardStep: null,
   hatched: true,
   mouth: { value: 0 },
@@ -121,7 +130,7 @@ export const useRafiki = create<State>((set, get) => ({
       rewarded: false,
       at: Date.now(),
     };
-    set({ current: a, pose: "thinking", hoveredSource: null });
+    set({ current: a, pose: "thinking", hoveredSource: null, panelExpanded: false, reader: null });
     return a;
   },
 

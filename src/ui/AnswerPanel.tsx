@@ -1,5 +1,10 @@
-import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { AnimatePresence, motion, useDragControls } from "motion/react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { RemixStyle } from "../../shared/types";
+import { sfx } from "../audio/sfx";
+import { remix } from "../lib/api";
+import { speak } from "../voice/voice";
+import { useIsPhone } from "./useIsPhone";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { REWARDS } from "../../shared/game";
@@ -18,19 +23,66 @@ const STAGES = [
 const order = { plan: 0, search: 1, read: 2, write: 3, done: 4 } as const;
 
 export function AnswerPanel({ answer, onAsk }: { answer: Answer; onAsk: (q: string, trailFrom?: Answer) => void }) {
-  const md = useMemo(() => linkCitations(answer.markdown), [answer.markdown]);
-  const streaming = answer.stage !== "done" && !answer.error;
+  const view = answer.view ?? null;
+  const shown = view ? answer.remixes?.[view] ?? "" : answer.markdown;
+  const md = useMemo(() => linkCitations(shown), [shown]);
+  const [remixing, setRemixing] = useState<RemixStyle | null>(null);
+  const streaming = (answer.stage !== "done" && !answer.error) || remixing !== null;
   const found = answer.discovered.length;
+  const phone = useIsPhone();
+  const expanded = useRafiki((s) => s.panelExpanded);
+  const drag = useDragControls();
+  const body = useRef<HTMLDivElement>(null);
+  const [peek, setPeek] = useState(() => (typeof window === "undefined" ? 300 : Math.round(window.innerHeight * 0.36)));
+  useEffect(() => {
+    const r = () => setPeek(Math.round(window.innerHeight * 0.36));
+    window.addEventListener("resize", r);
+    return () => window.removeEventListener("resize", r);
+  }, []);
+  const setExpanded = (v: boolean) => {
+    if (v !== useRafiki.getState().panelExpanded) sfx.tap();
+    useRafiki.getState().set({ panelExpanded: v });
+    if (!v) body.current?.scrollTo({ top: 0 });
+  };
+
+  const runRemix = async (style: RemixStyle | null) => {
+    if (style === null || answer.remixes?.[style] !== undefined) {
+      useRafiki.getState().patchCurrent({ view: style });
+      return;
+    }
+    sfx.pop();
+    setRemixing(style);
+    let acc = "";
+    useRafiki.getState().patchCurrent({ view: style, remixes: { ...answer.remixes, [style]: "" } });
+    await remix(
+      { question: answer.question, markdown: answer.markdown, sources: answer.sources, style },
+      (ev) => {
+        const cur = useRafiki.getState().current;
+        if (cur?.id !== answer.id) return;
+        if (ev.type === "token") acc += ev.text;
+        if (ev.type === "error") acc += `\n\n_Couldn't remix: ${ev.message}_`;
+        useRafiki.getState().patchCurrent({ remixes: { ...cur.remixes, [style]: acc } });
+      },
+    ).catch(() => {});
+    setRemixing(null);
+  };
 
   return (
     <motion.section
-      className="panel"
-      initial={{ opacity: 0, y: 40, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 30, scale: 0.97 }}
-      transition={{ type: "spring", stiffness: 220, damping: 26 }}
+      className={`panel ${phone ? "phone" : ""} ${phone && expanded ? "expanded" : ""}`}
+      initial={phone ? { y: "100%" } : { opacity: 0, y: 40, scale: 0.97 }}
+      animate={phone ? { y: expanded ? 0 : peek } : { opacity: 1, y: 0, scale: 1 }}
+      exit={phone ? { y: "100%" } : { opacity: 0, y: 30, scale: 0.97 }}
+      transition={{ type: "spring", stiffness: 260, damping: 30 }}
+      drag={phone ? "y" : false}
+      dragControls={drag}
+      dragListener={false}
+      dragConstraints={{ top: 0, bottom: peek }}
+      dragElastic={0.12}
+      onDragEnd={(_, i) => setExpanded(i.velocity.y < -300 || (i.offset.y < -60 && i.velocity.y < 300) ? true : i.velocity.y > 300 || i.offset.y > 60 ? false : expanded)}
     >
-      <header className="panel-head">
+      <header className="panel-head" onPointerDown={(e) => phone && drag.start(e)} onClick={() => phone && setExpanded(!expanded)}>
+        {phone && <div className="grabber" />}
         <motion.span className="emoji" key={topicIcon(answer)} initial={{ scale: 0, rotate: -40 }} animate={{ scale: 1, rotate: 0 }}>
           <Icon name={topicIcon(answer)} size={36} />
         </motion.span>
@@ -43,56 +95,74 @@ export function AnswerPanel({ answer, onAsk }: { answer: Answer; onAsk: (q: stri
         </div>
       </header>
 
-      <Journey answer={answer} />
+      <div
+        className="panel-body"
+        ref={body}
+        onTouchMove={() => phone && !expanded && setExpanded(true)}
+        onWheel={(e) => phone && !expanded && e.deltaY > 0 && setExpanded(true)}
+      >
+        <Journey answer={answer} />
 
-      {answer.sources.length > 0 && (
-        <div className="worlds-head">
-          <h3>
-            <Icon name="planet" size={24} /> Worlds to explore
-          </h3>
-          <span className="found-count">
-            <motion.b key={found} initial={{ scale: 1.6 }} animate={{ scale: 1 }}>
-              {found}
-            </motion.b>
-            /{answer.sources.length} found
-          </span>
+        {answer.reasoning && <Reasoning text={answer.reasoning} live={answer.stage !== "done" && !answer.markdown} />}
+
+        {answer.error && (
+          <div className="error">
+            <Icon name="cross" size={22} />
+            <span>
+              <strong>Rafiki tripped over a moon rock.</strong> {answer.error}
+            </span>
+          </div>
+        )}
+
+        {answer.say && answer.markdown && (
+          <div className="in-short">
+            <span className="nametag small">In short</span>
+            <p>{answer.say}</p>
+            <button className="btn small white" onClick={() => speak(answer.say)} aria-label="Hear it again">
+              <Icon name="sound" size={18} />
+            </button>
+          </div>
+        )}
+
+        {answer.stage === "done" && answer.markdown && !answer.error && <RemixBar view={view} busy={remixing} onPick={runRemix} />}
+
+        <div className={`markdown ${streaming ? "streaming" : ""}`}>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              a: ({ href, children }) => {
+                if (href?.startsWith("#cite-")) {
+                  const n = Number(href.slice(6));
+                  const src = answer.sources.find((s) => s.id === n);
+                  return <Cite n={n} answer={answer} src={src} />;
+                }
+                return (
+                  <a href={href} target="_blank" rel="noreferrer">
+                    {children}
+                  </a>
+                );
+              },
+            }}
+          >
+            {md}
+          </ReactMarkdown>
+          {!shown && streaming && <Skeleton />}
         </div>
-      )}
-      {answer.sources.length > 0 && <WorldCards answer={answer} />}
 
-      {answer.reasoning && <Reasoning text={answer.reasoning} live={streaming && !answer.markdown} />}
-
-      {answer.error && (
-        <div className="error">
-          <Icon name="cross" size={22} />
-          <span>
-            <strong>Rafiki tripped over a moon rock.</strong> {answer.error}
-          </span>
-        </div>
-      )}
-
-      <div className={`markdown ${streaming ? "streaming" : ""}`}>
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={{
-            a: ({ href, children }) => {
-              if (href?.startsWith("#cite-")) {
-                const n = Number(href.slice(6));
-                const src = answer.sources.find((s) => s.id === n);
-                return <Cite n={n} answer={answer} src={src} />;
-              }
-              return (
-                <a href={href} target="_blank" rel="noreferrer">
-                  {children}
-                </a>
-              );
-            },
-          }}
-        >
-          {md}
-        </ReactMarkdown>
-        {!answer.markdown && streaming && <Skeleton />}
-      </div>
+        {answer.sources.length > 0 && (
+          <div className="worlds-head">
+            <h3>
+              <Icon name="planet" size={24} /> Worlds to explore
+            </h3>
+            <span className="found-count">
+              <motion.b key={found} initial={{ scale: 1.6 }} animate={{ scale: 1 }}>
+                {found}
+              </motion.b>
+              /{answer.sources.length} found
+            </span>
+          </div>
+        )}
+        {answer.sources.length > 0 && <WorldCards answer={answer} />}
 
       {answer.images.length > 0 && <Gallery answer={answer} />}
 
@@ -124,8 +194,42 @@ export function AnswerPanel({ answer, onAsk }: { answer: Answer; onAsk: (q: stri
         )}
       </AnimatePresence>
 
-      {answer.metrics.length > 0 && <Metrics answer={answer} />}
+        {answer.metrics.length > 0 && <Metrics answer={answer} />}
+      </div>
     </motion.section>
+  );
+}
+
+const REMIXES: { style: RemixStyle | null; label: string; icon: string }[] = [
+  { style: null, label: "Original", icon: "book" },
+  { style: "simpler", label: "Simpler", icon: "sprout" },
+  { style: "points", label: "Key points", icon: "target" },
+  { style: "deeper", label: "Go deeper", icon: "search" },
+  { style: "views", label: "Other views", icon: "users" },
+];
+
+/** Same sources, different telling — re-written by Nemotron on demand. */
+function RemixBar({ view, busy, onPick }: { view: RemixStyle | null; busy: RemixStyle | null; onPick: (s: RemixStyle | null) => void }) {
+  return (
+    <div className="remix" role="tablist" aria-label="Remix this answer">
+      <Icon name="wand" size={24} />
+      <div className="remix-chips">
+        {REMIXES.map((r) => (
+          <button
+            key={r.label}
+            role="tab"
+            aria-selected={view === r.style}
+            className={`remix-chip ${view === r.style ? "on" : ""}`}
+            disabled={busy !== null}
+            onClick={() => onPick(r.style)}
+          >
+            <Icon name={r.icon} size={18} />
+            {r.label}
+            {busy === r.style && <span className="spinner" />}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

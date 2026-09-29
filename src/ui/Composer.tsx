@@ -83,7 +83,19 @@ export function Composer({ onAsk, busy, onStop }: { onAsk: (q: string, opts?: As
             submit();
           }}
         >
-          <Icon name="search" size={26} />
+          <button
+            type="button"
+            className={`mode-mini ${mode}`}
+            onClick={() => {
+              sfx.tap();
+              set({ mode: mode === "quick" ? "deep" : "quick" });
+            }}
+            aria-label={mode === "quick" ? "Quick trip (tap for Deep Dive)" : "Deep Dive (tap for Quick trip)"}
+            title={mode === "quick" ? "Quick trip" : "Deep Dive"}
+          >
+            <Icon name={mode === "quick" ? "bolt" : "planet"} size={24} />
+          </button>
+          <Icon name="search" size={26} className="search-ico" />
           <input
             ref={input}
             value={listening ? interim : text}

@@ -12,7 +12,7 @@ const PERSONA = `You are Rafiki ("friend" in Swahili) — a small, warm, endless
 // deployments reject unknown params, so we remember if it fails and stop sending it.
 let thinkToggleSupported = true;
 
-async function chat(
+export async function chat(
   tier: Tier,
   messages: Msg[],
   opts: { think: boolean; maxTokens?: number; temperature?: number },
@@ -38,7 +38,7 @@ async function chat(
   return nebius.chat.completions.create(base);
 }
 
-async function chatStream(tier: Tier, messages: Msg[], opts: { think: boolean; maxTokens?: number }) {
+export async function chatStream(tier: Tier, messages: Msg[], opts: { think: boolean; maxTokens?: number }) {
   const base = {
     model: models[tier],
     messages,

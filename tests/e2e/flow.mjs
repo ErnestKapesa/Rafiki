@@ -72,11 +72,42 @@ async function run(viewport, tag) {
   check((await p.locator(".celebrate").count()) === 1, `[${tag}] first expedition celebrates the First Steps badge`);
   await dismiss(p, tag);
 
-  // Discover two worlds via the cards.
-  await p.locator(".source").nth(0).click();
+  const phone = tag === "mobile";
+  if (phone) {
+    // Answer sheet starts peeking — tap the header to pull it up.
+    await p.locator(".panel-head").click();
+    await p.waitForTimeout(900);
+    check(await p.locator(".panel.expanded").isVisible(), `[${tag}] tapping the answer sheet expands it`);
+  }
+  check(await p.locator(".in-short").isVisible(), `[${tag}] "In short" summary shown`);
+
+  // Remix the answer.
+  await p.locator(".remix-chip", { hasText: "Simpler" }).click();
+  await p.waitForFunction(() => document.querySelector(".panel .markdown")?.textContent?.includes("library buddy"), null, { timeout: 15000 });
+  check(true, `[${tag}] remix rewrites the answer (Simpler)`);
+  await p.locator(".remix-chip", { hasText: "Original" }).click();
   await p.waitForTimeout(400);
+  check(!(await p.locator(".panel .markdown").innerText()).includes("library buddy"), `[${tag}] remix can switch back to Original`);
+
+  // Discover two worlds — each opens the in-app Reader.
+  await p.locator(".source").nth(0).click();
+  await p.waitForSelector(".reader .tldr:not(.loading)", { timeout: 15000 });
+  check(await p.locator(".reader .reader-article").isVisible(), `[${tag}] Reader shows the article text`);
+  check((await p.locator(".reader .tldr li").count()) >= 3, `[${tag}] Reader writes a TL;DR`);
+  await p.getByPlaceholder("Ask this page anything…").fill("What is this page about?");
+  await p.keyboard.press("Enter");
+  await p.waitForSelector(".qa-a p", { timeout: 15000 });
+  check(true, `[${tag}] Ask-this-page answers`);
+  await p.getByRole("button", { name: "Web page" }).click();
+  await p.waitForTimeout(400);
+  check(await p.locator(".reader .reader-empty").isVisible(), `[${tag}] non-embeddable site shows a friendly fallback`);
+  await shot(p, `${tag}-06b-reader`);
+  await p.getByRole("button", { name: "Close reader" }).click();
+  await p.waitForTimeout(700);
   await p.locator(".source").nth(1).click();
-  await p.waitForTimeout(1500);
+  await p.waitForTimeout(900);
+  await p.getByRole("button", { name: "Close reader" }).click();
+  await p.waitForTimeout(1200);
   check((await p.locator(".source.found").count()) === 2, `[${tag}] visiting sources marks them discovered`);
   check((await p.locator(".found-count").innerText()).startsWith("2/"), `[${tag}] worlds found counter updates`);
   const xp2 = await num(p, ".stat >> nth=0");
@@ -100,8 +131,29 @@ async function run(viewport, tag) {
   check(xp4 === xp3 + 25, `[${tag}] trail step pays 20 + 5 XP (${xp3} → ${xp4})`);
   await dismiss(p, tag);
 
-  // Sheets.
+  // News digest.
+  await p.getByRole("button", { name: "News", exact: true }).click();
+  await p.waitForSelector(".digest-pick", { timeout: 10000 });
+  await shot(p, `${tag}-08b-digest-pick`);
+  await p.getByRole("button", { name: /Brew my digest/ }).click();
+  await p.waitForSelector(".story h3", { timeout: 20000 });
+  await p.waitForTimeout(900);
+  await shot(p, `${tag}-08c-digest-story`);
+  const firstHeadline = await p.locator(".story h3").innerText();
+  await p.getByRole("button", { name: "Next story" }).last().click();
+  await p.waitForTimeout(900);
+  check((await p.locator(".story h3").innerText()) !== firstHeadline, `[${tag}] digest flips to the next story`);
+  check((await p.locator(".segments button.seen").count()) === 1, `[${tag}] story progress segments advance`);
+  await p.getByRole("button", { name: "Close digest" }).click();
+  await p.waitForTimeout(800);
+
+  // Sheets (on phones, the less-used ones live under "More").
+  const inMore = ["Galaxy", "Badges", "Ranks", "Journal", "Settings"];
   const open = async (label, name) => {
+    if (phone && inMore.includes(label)) {
+      await p.getByRole("button", { name: "More", exact: true }).click();
+      await p.waitForTimeout(700);
+    }
     await p.getByRole("button", { name: label, exact: true }).click();
     await p.waitForTimeout(1300);
     await shot(p, `${tag}-${name}`);

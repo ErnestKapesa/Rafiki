@@ -8,10 +8,14 @@ import { historyFrom, useRafiki, type Answer } from "./lib/store";
 import { WorldScene } from "./scene/World";
 import { AnswerPanel } from "./ui/AnswerPanel";
 import { Composer, type AskOpts } from "./ui/Composer";
+import { ErrorBoundary } from "./ui/ErrorBoundary";
 import { Hud } from "./ui/Hud";
+import { useIsPhone } from "./ui/useIsPhone";
 import { Icon } from "./ui/Icon";
 import { Onboarding } from "./ui/Onboarding";
 import { RewardLayer } from "./ui/RewardLayer";
+import { NewsDigest } from "./ui/NewsDigest";
+import { Reader } from "./ui/Reader";
 import { Sheets } from "./ui/Sheets";
 import { speak, stopSpeaking, warmVoice } from "./voice/voice";
 
@@ -27,6 +31,8 @@ export default function App() {
   const pose = useRafiki((s) => s.pose);
   const onboardStep = useRafiki((s) => s.onboardStep);
   const sheet = useRafiki((s) => s.sheet);
+  const panelExpanded = useRafiki((s) => s.panelExpanded);
+  const phone = useIsPhone();
   const set = useRafiki((s) => s.set);
   const onboarded = useGame((g) => g.onboarded);
   const profile = useGame((g) => g.s.profile);
@@ -119,7 +125,9 @@ export default function App() {
 
   return (
     <div className={`app ${onboarding ? "is-onboarding" : ""}`}>
-      <WorldScene />
+      <ErrorBoundary label="3d">
+        <WorldScene />
+      </ErrorBoundary>
 
       {onboarding ? (
         <Onboarding />
@@ -137,8 +145,23 @@ export default function App() {
               <motion.div className="hello" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
                 <Bubble text={greeting} />
                 <div className="suggestions">
-                  <small className="eyebrow light">Expedition ideas</small>
-                  <div>
+                  <motion.button
+                    className="digest-cta"
+                    onClick={() => (sfx.open(), set({ sheet: "news" }))}
+                    initial={{ opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    whileTap={{ scale: 0.97, y: 3 }}
+                  >
+                    <Icon name="news2" size={40} />
+                    <span>
+                      <b>Today's Digest</b>
+                      <small>The day's news in 2 minutes, summarised by Rafiki</small>
+                    </span>
+                    <span className="go">Read</span>
+                  </motion.button>
+                  <small className="eyebrow light">Or start an expedition</small>
+                  <div className="idea-row">
                     {IDEAS.map((s, i) => (
                       <motion.button
                         key={s.q}
@@ -160,7 +183,7 @@ export default function App() {
           </AnimatePresence>
 
           <AnimatePresence>
-            {current && sheet !== "wardrobe" && (
+            {current && sheet !== "wardrobe" && !(phone && panelExpanded) && (
               <motion.div className="say-bubble" key={current.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <Bubble
                   text={current.say || (pose === "searching" ? `Exploring ${current.queries.length || ""} trails…` : current.error ? "Hmm, that didn't work." : "Hmm, let me think…")}
@@ -172,17 +195,27 @@ export default function App() {
 
           <AnimatePresence mode="wait">
             {current && !sheet && (
-              <AnswerPanel key={current.id} answer={current} onAsk={(q, from) => onAsk(q, { trailFrom: from })} />
+              <ErrorBoundary key={current.id} label="answer">
+                <AnswerPanel answer={current} onAsk={(q, from) => onAsk(q, { trailFrom: from })} />
+              </ErrorBoundary>
             )}
           </AnimatePresence>
 
-          {sheet !== "wardrobe" && <Composer onAsk={onAsk} busy={busy} onStop={stop} />}
+          {sheet !== "wardrobe" && sheet !== "news" && <Composer onAsk={onAsk} busy={busy} onStop={stop} />}
           {current && !sheet && (
             <button className="btn white new-trip" onClick={() => (stop(), sfx.tap(), set({ current: null }))} title="New expedition">
               <Icon name="home" size={22} /> Home
             </button>
           )}
-          <Sheets onOpenAnswer={openAnswer} />
+          <ErrorBoundary label="sheets">
+            <Sheets onOpenAnswer={openAnswer} />
+          </ErrorBoundary>
+          <ErrorBoundary label="digest">
+            <NewsDigest onAsk={(q) => onAsk(q)} />
+          </ErrorBoundary>
+          <ErrorBoundary label="reader">
+            <Reader />
+          </ErrorBoundary>
         </>
       )}
       <RewardLayer />
