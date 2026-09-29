@@ -1,4 +1,4 @@
-import { Html, Line, OrbitControls, Sparkles, Stars } from "@react-three/drei";
+import { Line, OrbitControls, Sparkles, Stars } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import { useMemo, useRef, useState } from "react";
@@ -77,6 +77,7 @@ export default function Galaxy({ onOpen }: { onOpen: (a: Answer) => void }) {
           <Bloom intensity={1.2} luminanceThreshold={0.2} mipmapBlur />
         </EffectComposer>
       </Canvas>
+      {hover && <div className="star-tip">{stars.find((x) => x.a.id === hover)?.a.question}</div>}
       <div className="galaxy-legend">
         <span><i style={{ background: "#ffd36e" }} /> Quick</span>
         <span><i style={{ background: "#b48cff" }} /> Deep Dive</span>
@@ -143,13 +144,6 @@ function Star({
         <sphereGeometry args={[size, 20, 20]} />
         <meshBasicMaterial color={color} toneMapped={false} />
       </mesh>
-      {hovered && (
-        <Html center position={[0, size + 0.25, 0]} style={{ pointerEvents: "none" }}>
-          <div className="star-tip">
-{label}
-          </div>
-        </Html>
-      )}
     </group>
   );
 }

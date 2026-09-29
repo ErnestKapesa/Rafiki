@@ -1,4 +1,4 @@
-import { Html, Sparkles, Stars } from "@react-three/drei";
+import { Sparkles, Stars } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
 import { useEffect, useMemo, useRef } from "react";
@@ -298,9 +298,8 @@ function Hero() {
 function SourceWorlds({ answer }: { answer: Answer }) {
   // Hidden in the wardrobe close-up so labels never cover Rafiki's face.
   const closeUp = useRafiki((s) => s.sheet === "wardrobe");
-  if (closeUp) return null;
   return (
-    <group position={[0, -0.1, 0]}>
+    <group position={[0, -0.1, 0]} visible={!closeUp}>
       {answer.sources.map((s, i) => (
         <World key={s.url} answer={answer} source={s} index={i} total={answer.sources.length} found={answer.discovered.includes(s.url)} />
       ))}
@@ -365,13 +364,60 @@ function World({ answer, source, index, total, found }: { answer: Answer; source
           <meshBasicMaterial color="#ffffff" transparent opacity={0.8} toneMapped={false} />
         </mesh>
       )}
-      <Html center distanceFactor={4.2} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
-        <div className={`world-label ${found ? "found" : ""}`}>
-          {found && source.favicon ? <img src={source.favicon} alt="" /> : <b>{found ? source.id : "?"}</b>}
-          <span>{found ? source.domain : `World ${source.id}`}</span>
-        </div>
-      </Html>
+      <WorldLabel text={found ? source.domain : `World ${source.id}`} badge={found ? "✓" : "?"} found={found} />
     </group>
+  );
+}
+
+/**
+ * Label as a canvas-texture sprite (no DOM, no nested React root): a white pill
+ * with a round badge, drawn once per text change, always facing the camera.
+ */
+function WorldLabel({ text, badge, found }: { text: string; badge: string; found: boolean }) {
+  const { tex, aspect } = useMemo(() => {
+    const dpr = 2;
+    const font = `900 ${26 * dpr}px "M PLUS Rounded 1c", ui-rounded, system-ui, sans-serif`;
+    const probe = document.createElement("canvas").getContext("2d")!;
+    probe.font = font;
+    const label = text.length > 22 ? text.slice(0, 21) + "…" : text;
+    const h = 44 * dpr;
+    const w = Math.ceil(probe.measureText(label).width + 62 * dpr);
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h + 6 * dpr;
+    const g = c.getContext("2d")!;
+    const pill = (y: number, fill: string) => {
+      g.fillStyle = fill;
+      g.beginPath();
+      g.roundRect(0, y, w, h, h / 2);
+      g.fill();
+    };
+    pill(5 * dpr, "rgba(58,46,92,0.22)"); // chunky under-shadow
+    pill(0, "#ffffff");
+    g.fillStyle = found ? "#2ECC8F" : "#C9C2EA";
+    g.beginPath();
+    g.arc(h / 2, h / 2, 15 * dpr, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#fff";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.font = `900 ${20 * dpr}px system-ui, sans-serif`;
+    g.fillText(badge, h / 2, h / 2 + dpr);
+    g.font = font;
+    g.textAlign = "left";
+    g.fillStyle = found ? "#3A2E5C" : "#6B6190";
+    g.fillText(label, h - 2 * dpr, h / 2 + dpr);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 4;
+    return { tex: t, aspect: c.width / c.height };
+  }, [text, badge, found]);
+  useEffect(() => () => tex.dispose(), [tex]);
+  const hgt = 0.12;
+  return (
+    <sprite position={[0, 0.3, 0]} scale={[hgt * aspect, hgt, 1]} renderOrder={10}>
+      <spriteMaterial map={tex} transparent depthWrite={false} toneMapped={false} />
+    </sprite>
   );
 }
 
