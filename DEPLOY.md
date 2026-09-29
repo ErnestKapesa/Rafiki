@@ -49,6 +49,11 @@ vercel env add VITE_SUPABASE_ANON_KEY production
 # optional: MODEL_FAST / MODEL_SMART / MODEL_DEEP
 ```
 
+Or do everything in one go (reads `.env`, pushes the vars to Vercel Production, deploys):
+```bash
+bash scripts/deploy.sh
+```
+
 Deploy:
 ```bash
 npm run deploy         # = vercel --prod
