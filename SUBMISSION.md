@@ -28,7 +28,7 @@ Rafiki turns web search into a cozy adventure. Your customizable plush friend ex
 
 The answer streams over SSE. A chunk-safe parser splits reasoning, speech and markdown, so Rafiki starts talking before the answer has finished writing. The UI shows each step's model, latency and token count. The whole app ships as one Docker container that can run on **Nebius Serverless Endpoints**.
 
-**Open source throughout:** NVIDIA Nemotron, Kokoro-82M TTS running in the browser, three.js / React Three Fiber, Fluent 3D icons (MIT), the MCP SDK (Rafiki is also an MCP server), and Supabase. MIT licensed.
+**Open source throughout:** NVIDIA Nemotron, Kokoro-82M TTS running in the browser, three.js / React Three Fiber, an original hand-drawn SVG icon set, the MCP SDK (Rafiki is also an MCP server), and Supabase. MIT licensed.
 
 **Quality:** 12 unit tests (including engine↔SQL parity), a Postgres scenario suite covering RLS and anti-cheat, and a 46-check end-to-end browser test of the full game loop at desktop and phone sizes.
 

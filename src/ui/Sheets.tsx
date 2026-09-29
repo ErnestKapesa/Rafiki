@@ -400,7 +400,7 @@ function Settings() {
       </div>
       <h4>About</h4>
       <p className="muted small">
-        Rafiki thinks with <b>NVIDIA Nemotron</b> on <b>Nebius Token Factory</b>, searches with <b>Tavily</b>, and keeps score in <b>Supabase</b>. 3D icons: Microsoft Fluent Emoji (MIT).
+        Rafiki thinks with <b>NVIDIA Nemotron</b> on <b>Nebius Token Factory</b>, searches with <b>Tavily</b>, and keeps score in <b>Supabase</b>. Icons and characters are original to Rafiki.
       </p>
       <button
         className="link danger"
